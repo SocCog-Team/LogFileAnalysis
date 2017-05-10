@@ -11,8 +11,10 @@ function [ data_struct ] = fn_handle_data_struct( command_str, varargin )
 %   create: actually use a defined cell array of columns names to generate
 %   the basic structure.
 %
-%	add_column: NIY take a full vector/cell_list and a name and add them to
-%		the given struct, this should work with the putput of text scan
+%	add_columns: take a full vector/array/cell_list/cell array and a cell list of 
+%		column names and add them to the given struct, this should work with 
+%		the putput of text scan?
+%		current version will only take numeric vectors/array
 %
 %	add_row: add a new data entry, this will ping-pong the actual
 %		data_structer between fn_handle_data_struct and the caller, so only
