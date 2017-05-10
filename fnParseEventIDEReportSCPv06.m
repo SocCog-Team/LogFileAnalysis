@@ -766,7 +766,7 @@ for iEnumName = 1 : length(EnumNamesList)
 			%data_struct.cn.NewDataColumnName = length(data_struct.header);
 		
 			% add to the unique lists
-			data_struct.unique_lists.NewDataColumnName = Enums_struct.(CurrentEnumName).unique_lists.(CurrentEnumName);
+			data_struct.unique_lists.(NewDataColumnName) = Enums_struct.(CurrentEnumName).unique_lists.(CurrentEnumName);
 			
 		end
 		
