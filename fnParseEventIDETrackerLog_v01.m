@@ -1,0 +1,318 @@
+function [ data_struct ] = parse_EventIDETrackerLog_v01( TrackerLog_FQN, column_separator )
+%PARSE_PQLABTRACKER Summary of this function goes here
+%   Try to read in eventIDE TrackerLog files for PQLabs touch panel
+%   elements. This will try to also intrapolate. the timestamps per sample
+%   and calculate the centroid positions?
+% hard code data types according to standard eventIDE columns
+% Measure the speed and compare with construction the format specifier list
+% from the header line and then use textscan to read the whole thing into
+% cell arrays, maybe merge these using the NIY add_column in
+% fn_handle_data_struct.m
+%TODO: implement and benchmark a textscan based method with after parsing
+%	transfer into a data_struct (will require to implement add_column)
+
+global data_struct;
+
+timestamps.(mfilename).start = tic;
+disp(['Starting: ', mfilename]);
+dbstop if error
+fq_mfilename = mfilename('fullpath');
+mfilepath = fileparts(fq_mfilename);
+
+suffix_string = '';
+test_timing = 0;
+add_method = 'add_row_to_global_struct';		% add_row (really slow, just use for gold truth control), add_row_to_global_struct
+pre_allocate_data = 1;
+batch_grow_data_array = 1;	% should be default
+
+if (test_timing)
+	suffix_string = ['.', add_method];
+end
+	
+info.logfile_FQN = [];
+info.session_date_string = [];
+info.session_date_vec = [];
+info.experiment_eve = [];
+info.tracker_name = [];
+
+data_struct.header = {};
+data_struct.data = [];
+
+
+%%% header part of the PQTrackerLog
+% Date and time: 2017.02.03 11:13
+% Experiment: 0014_DAGDFGR.v014.11.20170302.01
+% Tracker: PQLabTrackerA
+% EventIDE TimeStamp;Gaze X;Gaze Y;Tracker Time Stamp;Touch Event Type;Touch Source ID;Raw position X;Raw position Y;Touch blob width;Touch blob height;Paradigm;TrialNum;DebugInfo;
+
+
+if (~exist('TrackerLog_FQN', 'var'))
+	[TrackerLog_Name, TrackerLog_Dir] = uigetfile('TrackerLog--*.txt', 'Select the tracker log file');
+	TrackerLog_FQN = fullfile(TrackerLog_Dir, TrackerLog_Name);
+	save_matfile = 1;
+else
+	[TrackerLog_Dir, TrackerLog_Name] = fileparts(TrackerLog_FQN);
+	save_matfile = 0;
+end
+tmp_dir_TrackerLog_FQN = dir(TrackerLog_FQN);
+TrackerLog_size_bytes  = tmp_dir_TrackerLog_FQN.bytes;
+
+
+% default to semi-colon to separate the LogHeader and data lines
+if (~exist('column_separator', 'var'))
+	column_separator = ';';
+end
+
+
+
+% open the file
+TrackerLog_fd = fopen(TrackerLog_FQN, 'r');
+if (TrackerLog_fd == -1)
+	error(['Could not open ', num2str(TrackerLog_fd), ' none selected?']);
+end
+info.logfile_FQN = TrackerLog_FQN;
+
+% parse the informative header part
+info_header_parsed = 0;
+while (~info_header_parsed)
+	current_line = fgetl(TrackerLog_fd);
+	[token, remain] = strtok(current_line, ':');
+	found_header_line = 0;
+	switch token
+		case 'Date and time'
+			DateVector = datevec(strtrim(remain(2:end)), 'yyyy.dd.mm HH:MM');
+			info.session_date_string = strtrim(remain(2:end)); %TODO: maybe clean up/ reconstitute from datevec?
+			info.session_date_vec = DateVector;
+			found_header_line = 1;
+		case 'Experiment'
+			info.experiment_eve = [remain(2:end), '.eve'];
+			found_header_line = 1;
+		case 'Tracker'
+			info.tracker_name = remain(2:end);
+			found_header_line = 1;
+	end
+	
+	if (~found_header_line)
+		info_header_parsed = 1;
+	end
+end
+
+% parse the LogHeader line (if it exists), we already have the current_line
+% NOTE we assume the string 'EventIDE TimeStamp' to be part of the LogHeader bot not
+% the data lines
+if ~isempty(strfind(current_line, 'EventIDE TimeStamp'))
+	[header, LogHeader_list, ] = process_LogHeader(current_line, column_separator);
+	info.LogHeader = LogHeader_list;
+	% create the data structure
+	data_struct = fn_handle_data_struct('create', header);
+	current_line = fgetl(TrackerLog_fd); % we need this for the next section where we wantto start with a loaded log line
+end
+
+data_start_offset = ftell(TrackerLog_fd) - length(current_line);
+
+
+% now read and parse each data line in sequence, we already have the first
+% line loaded
+n_lines = 1;
+
+% estimate the number of lines in the TrackerLog
+bytes_per_line = length(current_line);
+estimated_data_lines = (TrackerLog_size_bytes - data_start_offset) / bytes_per_line;
+if (pre_allocate_data)
+	data_struct.data = zeros([round(1.2 * estimated_data_lines) size(data_struct.data, 2)]);
+	if (test_timing)
+		suffix_string = [suffix_string, '.preallocated_data_array'];
+	end
+end
+
+if (batch_grow_data_array)
+	batch_size = floor(estimated_data_lines/10);
+	batch_size = 500000; % needs tweaking, but 100000 should work
+	suffix_string = [suffix_string, '.data_grow_batch_size_', num2str(batch_size)];
+else
+	batch_size = 1;
+end
+
+report_every_n_lines = 1000;
+while (~feof(TrackerLog_fd))
+	
+	current_row_data = extract_row_data_from_Log_line(current_line, data_struct.header, column_separator);
+	
+	switch add_method
+		case 'add_row'
+			report_every_n_lines = 100;
+			data_struct = fn_handle_data_struct('add_row', data_struct, current_row_data, batch_size); % do not batch as we copy every byte multiple times
+		case 'add_row_to_global_struct'
+			report_every_n_lines = 10000;
+			fn_handle_data_struct('add_row_to_global_struct', current_row_data, batch_size);
+	end
+	
+	% get the next line
+	current_line = fgetl(TrackerLog_fd);
+	n_lines = n_lines + 1;
+	% add progress indicator
+	if ~(mod(n_lines, report_every_n_lines))
+		cur_fpos = ftell(TrackerLog_fd);
+		processed_size_pct = 100 * (cur_fpos / (TrackerLog_size_bytes - data_start_offset));
+		disp(['Processed ', num2str(n_lines), ' lines of the TrackerLog file (', num2str(processed_size_pct, '%5.2f'),' %).']);		
+	end
+end
+
+% clean up
+fclose(TrackerLog_fd);
+data_struct = fn_handle_data_struct('truncate_to_actual_size', data_struct);
+
+
+% add the additional information structure
+data_struct.info = info;
+
+data_struct.info.processing_time_ms = toc(timestamps.(mfilename).start);
+if (save_matfile)
+	save(fullfile(TrackerLog_Dir, [TrackerLog_Name, suffix_string, '.mat']), 'data_struct');
+end
+
+timestamps.(mfilename).end = toc(timestamps.(mfilename).start);
+disp([mfilename, ' took: ', num2str(timestamps.(mfilename).end), ' seconds.']);
+disp([mfilename, ' took: ', num2str(timestamps.(mfilename).end / 60), ' minutes. Done...']);
+
+return
+end
+
+
+
+function 	[ header, LogHeader_list ] = process_LogHeader( LogHeader_line, column_separator )
+% LogHeader found, so parse it
+% special field names:
+% string:	'Current Event', 'Paradigm', 'DebugInfo'
+
+header = {};			% this is the prcessed and expanded header readf for fn_handle_data_struct
+LogHeader_list = {};	% just a cell array of the individual columns of the LogHeader string, dissected at column_separator
+
+LogHeader_parsed = 0;
+raw_LogHeader = LogHeader_line;
+while (~LogHeader_parsed)
+	[current_raw_column_name, raw_LogHeader] = strtok(raw_LogHeader, column_separator); % strtok will ignore leading column_separator
+	LogHeader_list{end+1} = current_raw_column_name;
+	current_raw_column_name = strtrim(current_raw_column_name);% ignore leading and trailing white space
+	% some column names are special
+	switch current_raw_column_name
+		case {'Current Event', 'Paradigm', 'DebugInfo'}
+			current_raw_column_name = sanitize_col_name_for_matlab(current_raw_column_name);
+			current_raw_column_name = [current_raw_column_name, '_idx'];
+			header{end+1} = current_raw_column_name;
+		case {'GLM Coefficients'}
+			% complex:	'GLM Coefficients' (GainX=1 OffsetX=0 GainY=1 OffsetY=0)
+			header{end+1} = 'GLM_Coefficients_GainX';
+			header{end+1} = 'GLM_Coefficients_OffsetX';
+			header{end+1} = 'GLM_Coefficients_GainY';
+			header{end+1} = 'GLM_Coefficients_OffsetY';
+		otherwise
+			current_raw_column_name = sanitize_col_name_for_matlab(current_raw_column_name);
+			header{end+1} = current_raw_column_name;
+	end
+	if isempty(raw_LogHeader) || (length(raw_LogHeader) ==  length(column_separator)) || strcmp(raw_LogHeader, column_separator)
+		LogHeader_parsed = 1;
+	end 
+	%disp(current_raw_column_name);
+end
+
+return
+end
+
+
+function [ row_data ] = extract_row_data_from_Log_line(log_line, column_name_list, column_separator)
+% process the raw line from the TrackerLog and transform into a form
+% fn_handle_data_struct will accept as row_data (either a numeric vector or a cell array of numeric vectors and singleton string cells)
+
+row_data = cell([1 1]);
+
+log_line_remain = log_line;
+log_line_parsed = 0;
+column_idx = 0;
+while ~(log_line_parsed)
+	[current_column_data, log_line_remain] = strtok(log_line_remain, column_separator);
+	column_idx = column_idx + 1;
+	cur_col_name = column_name_list{column_idx};
+
+	column_is_GLM = 0;
+	if (length(cur_col_name) >= 17) && (strcmp(cur_col_name(1:17), 'GLM_Coefficients_'))
+		% we need to parse all four sub-elements
+		column_is_GLM = 1;
+		GLM_keywords = current_column_data;
+		GLM_values = zeros([1 4]);
+		for i_glm = 1 : 4
+			[GLM_keyvaluepair, GLM_keywords] = strtok(GLM_keywords, ' ');
+			[GLM_key, GLM_value] = strtok(GLM_keyvaluepair, '=');
+			GLM_values(i_glm) = str2double(GLM_value);
+		end
+		column_idx = column_idx + 3;
+		if isempty(row_data{end})
+			row_data{end} = GLM_values;
+		else
+			row_data{end + 1} = GLM_values;
+		end
+	end
+	
+	column_is_string = 0;
+	if strcmp(cur_col_name(end-3:end), '_idx')
+		column_is_string = 1;
+		if isempty(row_data{end})
+			row_data{end} = current_column_data;
+		else
+			row_data{end + 1} = current_column_data;
+		end
+	end
+	
+	if (~column_is_GLM && ~column_is_string)  
+		% simple numeric data, append if poosible
+		if isempty(row_data{end})
+			row_data{end} = str2double(current_column_data);
+		else
+			% if the previous data is numeric append to last/current cell
+			% instead of appending a new cell
+			if isnumeric(row_data{end})
+				row_data{end}(end+1) = str2double(current_column_data);
+			else
+				row_data{end + 1} = str2double(current_column_data);
+			end
+		end
+	end
+	
+	
+	if isempty(log_line_remain) || (length(log_line_remain) ==  length(column_separator)) || strcmp(log_line_remain, column_separator)
+		log_line_parsed = 1;
+	end
+end
+
+return
+end
+
+function [ sanitized_column_name ]  = sanitize_col_name_for_matlab( raw_column_name )
+% some characters are not really helpful inside matlab variable names, so
+% replace them with something that should not cause problems
+taboo_char_list =		{' ', '-', '.', '='};
+replacement_char_list = {'_', '_', '_dot_', '_eq_'};
+
+sanitized_column_name = raw_column_name;
+
+for i_taboo_char = 1: length(taboo_char_list)
+	current_taboo_string = taboo_char_list{i_taboo_char};
+	current_replacement_string = replacement_char_list{i_taboo_char};
+	current_taboo_processed = 0;
+	remain = sanitized_column_name;
+	tmp_string = '';
+	while (~current_taboo_processed)
+		[token, remain] = strtok(remain, current_taboo_string);
+		tmp_string = [tmp_string, token, current_replacement_string];
+		if isempty(remain)
+			current_taboo_processed = 1;
+			% we add one superfluous replaceent string at the end, so
+			% remove that
+			tmp_string = tmp_string(1:end-length(current_replacement_string));
+		end
+	end
+	sanitized_column_name = tmp_string;
+end
+
+return
+end
