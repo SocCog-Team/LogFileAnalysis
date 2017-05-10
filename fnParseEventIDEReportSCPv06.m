@@ -1,9 +1,9 @@
 function [ report_struct ] = fnParseEventIDEReportSCPv06( ReportLog_FQN, ItemSeparator, ArraySeparator )
-%PARSE_EVENTIDE_REPORT_SCP_V01 Summary of this function goes here
+%fnParseEventIDEReportSCP parse the EventIDE report files generates as part
+%of the social cognition plattform at the DPZ
 %   Try to read in eventIDE report files for DPZ SCP experiments
 % hard code data types according to standard eventIDE columns
 %TODO: implement and benchmark a textscan based method with after parsing
-%	transfer into a data_struct (will require to implement add_column)
 % Ideally each record type consist out of three lines, header, types, and
 % data
 
@@ -206,93 +206,6 @@ if ~(exist('StartUpVariables_struct', 'var'))
 	StartUpVariables_struct = struct([]);
 end
 
-% % parse the informative header part
-% info_header_parsed = 0;
-% while (~info_header_parsed)
-% 	current_line = fgetl(ReportLog_fd);
-% 	[token, remain] = strtok(current_line, ':');
-% 	found_header_line = 0;
-% 	switch token
-% 		case 'Date and time'
-% 			DateVector = datevec(strtrim(remain(2:end)), 'yyyy.dd.mm HH:MM');
-% 			info.session_date_string = strtrim(remain(2:end)); %TODO: maybe clean up/ reconstitute from datevec?
-% 			info.session_date_vec = DateVector;
-% 			found_header_line = 1;
-% 		case 'Experiment'
-% 			info.experiment_eve = [remain(2:end), '.eve'];
-% 			found_header_line = 1;
-% 		case 'Tracker'
-% 			info.tracker_name = remain(2:end);
-% 			found_header_line = 1;
-% 	end
-%
-% 	if (~found_header_line)
-% 		info_header_parsed = 1;
-% 	end
-% end
-%
-% % parse the LogHeader line (if it exists), we already have the current_line
-% % NOTE we assume the string 'EventIDE TimeStamp' to be part of the LogHeader bot not
-% % the data lines
-% if ~isempty(strfind(current_line, 'EventIDE TimeStamp'))
-% 	[header, LogHeader_list, ] = process_LogHeader(current_line, column_separator);
-% 	info.LogHeader = LogHeader_list;
-% 	% create the data structure
-% 	data_struct = fn_handle_data_struct('create', header);
-% 	current_line = fgetl(ReportLog_fd); % we need this for the next section where we wantto start with a loaded log line
-% end
-%
-% data_start_offset = ftell(ReportLog_fd) - length(current_line);
-%
-%
-% % now read and parse each data line in sequence, we already have the first
-% % line loaded
-% n_lines = 1;
-%
-% % estimate the number of lines in the ReportLog
-% bytes_per_line = length(current_line);
-% estimated_data_lines = (ReportLog_size_bytes - data_start_offset) / bytes_per_line;
-% if (pre_allocate_data)
-% 	data_struct.data = zeros([round(1.2 * estimated_data_lines) size(data_struct.data, 2)]);
-% 	if (test_timing)
-% 		suffix_string = [suffix_string, '.preallocated_data_array'];
-% 	end
-% end
-%
-% if (batch_grow_data_array)
-% 	batch_size = floor(estimated_data_lines/10);
-% 	batch_size = 500000; % needs tweaking, but 100000 should work
-% 	suffix_string = [suffix_string, '.data_grow_batch_size_', num2str(batch_size)];
-% else
-% 	batch_size = 1;
-% end
-%
-% report_every_n_lines = 1000;
-% while (~feof(ReportLog_fd))
-%
-% 	current_row_data = extract_row_data_from_Log_line(current_line, data_struct.header, column_separator);
-%
-% 	switch add_method
-% 		case 'add_row'
-% 			report_every_n_lines = 100;
-% 			data_struct = fn_handle_data_struct('add_row', data_struct, current_row_data, batch_size); % do not batch as we copy every byte multiple times
-% 		case 'add_row_to_global_struct'
-% 			report_every_n_lines = 10000;
-% 			fn_handle_data_struct('add_row_to_global_struct', current_row_data, batch_size);
-% 	end
-%
-% 	% get the next line
-% 	current_line = fgetl(ReportLog_fd);
-% 	n_lines = n_lines + 1;
-% 	% add progress indicator
-% 	if ~(mod(n_lines, report_every_n_lines))
-% 		cur_fpos = ftell(ReportLog_fd);
-% 		processed_size_pct = 100 * (cur_fpos / (ReportLog_size_bytes - data_start_offset));
-% 		disp(['Processed ', num2str(n_lines), ' lines of the ReportLog file (', num2str(processed_size_pct, '%5.2f'),' %).']);
-% 	end
-% end
-%
-
 
 % clean up
 fclose(ReportLog_fd);
@@ -303,7 +216,7 @@ fclose(ReportLog_fd);
 TmpDateVector = IDinfo_struct.DateVector;
 SessionDataTimeValue = TmpDateVector(6)*10 + TmpDateVector(5) * 100 + TmpDateVector(4) * 10000 + ...
 	TmpDateVector(3) * 1000000 + TmpDateVector(2) * 100000000 + TmpDateVector(1) * 10000000000;
-SessionSetUpIdCode =  str2double(IDinfo_struct.Computer(end-1:end));
+SessionSetUpIdCode =  str2double(IDinfo_struct.Computer(end-1:end)); % better use a hash of the computer name?
 % create a numeric ID for the different set-ups
 SessionIdValue = SessionDataTimeValue + SessionSetUpIdCode * 100000000000000;
 %num2str(SessionIdValue)
@@ -313,7 +226,7 @@ data_struct = fn_handle_data_struct('add_columns', data_struct, NewDataColumn, {
 
 % also add reward information to the trial table
 % for this we nned to parse the Reward_struct and create columns to add to
-% te data table
+% the data table
 if ~isempty(Reward_struct)
 	RewardPerTrialInfo_struct = fnExtractPerTrialRewardInfo(Reward_struct, size(data_struct.data, 1));
 	data_struct = fn_handle_data_struct('add_columns', data_struct, RewardPerTrialInfo_struct.data, RewardPerTrialInfo_struct.header);
@@ -357,116 +270,6 @@ disp([mfilename, ' took: ', num2str(timestamps.(mfilename).end / 60), ' minutes.
 
 return
 end
-
-
-
-function 	[ header, LogHeader_list ] = process_LogHeader( LogHeader_line, column_separator )
-% LogHeader found, so parse it
-% special field names:
-% string:	'Current Event', 'Paradigm', 'DebugInfo'
-
-header = {};			% this is the prcessed and expanded header readf for fn_handle_data_struct
-LogHeader_list = {};	% just a cell array of the individual columns of the LogHeader string, dissected at column_separator
-
-LogHeader_parsed = 0;
-raw_LogHeader = LogHeader_line;
-while (~LogHeader_parsed)
-	[current_raw_column_name, raw_LogHeader] = strtok(raw_LogHeader, column_separator); % strtok will ignore leading column_separator
-	LogHeader_list{end+1} = current_raw_column_name;
-	current_raw_column_name = strtrim(current_raw_column_name);% ignore leading and trailing white space
-	% some column names are special
-	switch current_raw_column_name
-		case {'Current Event', 'Paradigm', 'DebugInfo'}
-			current_raw_column_name = sanitize_col_name_for_matlab(current_raw_column_name);
-			current_raw_column_name = [current_raw_column_name, '_idx'];
-			header{end+1} = current_raw_column_name;
-		case {'GLM Coefficients'}
-			% complex:	'GLM Coefficients' (GainX=1 OffsetX=0 GainY=1 OffsetY=0)
-			header{end+1} = 'GLM_Coefficients_GainX';
-			header{end+1} = 'GLM_Coefficients_OffsetX';
-			header{end+1} = 'GLM_Coefficients_GainY';
-			header{end+1} = 'GLM_Coefficients_OffsetY';
-		otherwise
-			current_raw_column_name = sanitize_col_name_for_matlab(current_raw_column_name);
-			header{end+1} = current_raw_column_name;
-	end
-	if isempty(raw_LogHeader) || (length(raw_LogHeader) ==  length(column_separator)) || strcmp(raw_LogHeader, column_separator)
-		LogHeader_parsed = 1;
-	end
-	%disp(current_raw_column_name);
-end
-
-return
-end
-
-
-function [ row_data ] = extract_row_data_from_Log_line(log_line, column_name_list, column_separator)
-% process the raw line from the ReportLog and transform into a form
-% fn_handle_data_struct will accept as row_data (either a numeric vector or a cell array of numeric vectors and singleton string cells)
-
-row_data = cell([1 1]);
-
-log_line_remain = log_line;
-log_line_parsed = 0;
-column_idx = 0;
-while ~(log_line_parsed)
-	[current_column_data, log_line_remain] = strtok(log_line_remain, column_separator);
-	column_idx = column_idx + 1;
-	cur_col_name = column_name_list{column_idx};
-	
-	column_is_GLM = 0;
-	if (length(cur_col_name) >= 17) && (strcmp(cur_col_name(1:17), 'GLM_Coefficients_'))
-		% we need to parse all four sub-elements
-		column_is_GLM = 1;
-		GLM_keywords = current_column_data;
-		GLM_values = zeros([1 4]);
-		for i_glm = 1 : 4
-			[GLM_keyvaluepair, GLM_keywords] = strtok(GLM_keywords, ' ');
-			[GLM_key, GLM_value] = strtok(GLM_keyvaluepair, '=');
-			GLM_values(i_glm) = str2double(GLM_value);
-		end
-		column_idx = column_idx + 3;
-		if isempty(row_data{end})
-			row_data{end} = GLM_values;
-		else
-			row_data{end + 1} = GLM_values;
-		end
-	end
-	
-	column_is_string = 0;
-	if strcmp(cur_col_name(end-3:end), '_idx')
-		column_is_string = 1;
-		if isempty(row_data{end})
-			row_data{end} = current_column_data;
-		else
-			row_data{end + 1} = current_column_data;
-		end
-	end
-	
-	if (~column_is_GLM && ~column_is_string)
-		% simple numeric data, append if poosible
-		if isempty(row_data{end})
-			row_data{end} = str2double(current_column_data);
-		else
-			% if the previous data is numeric append to last/current cell
-			% instead of appending a new cell
-			if isnumeric(row_data{end})
-				row_data{end}(end+1) = str2double(current_column_data);
-			else
-				row_data{end + 1} = str2double(current_column_data);
-			end
-		end
-	end
-	
-	
-	if isempty(log_line_remain) || (length(log_line_remain) ==  length(column_separator)) || strcmp(log_line_remain, column_separator)
-		log_line_parsed = 1;
-	end
-end
-
-return
-end
-
 
 function [ sanitized_column_name ]  = sanitize_col_name_for_matlab( raw_column_name )
 % some characters are not really helpful inside matlab variable names, so
