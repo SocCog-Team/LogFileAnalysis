@@ -860,7 +860,13 @@ CommonColumnFragmentString = 'NumberRewardPulsesDelivered';
 % get the indices for Names A and B, since the Name_idx columns guarantee
 % no sorting we have to dig in manually...
 CodeA = find(strcmp(Reward_struct.unique_lists.Name, 'A'));
+if isempty(CodeA)
+	CodeA = find(strcmp(Reward_struct.unique_lists.Name, 'SubjectA'));
+end
 CodeB = find(strcmp(Reward_struct.unique_lists.Name, 'B'));
+if isempty(CodeB)
+	CodeB = find(strcmp(Reward_struct.unique_lists.Name, 'SubjectB'));
+end
 CodeHIT = find(strcmp(Reward_struct.unique_lists.RewardReasonString, 'TASK_HIT'));
 CodeMANUAL = find(strcmp(Reward_struct.unique_lists.RewardReasonString, 'MANUAL'));
 
