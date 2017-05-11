@@ -41,8 +41,6 @@ info.experiment_eve = [];
 % this?
 data_struct.header = {};
 data_struct.data = [];
-% different types:
-% TIMING, ENUM, CLISTATISTICS, TRIAL, SESSION, REWARD
 
 
 if (~exist('ReportLog_FQN', 'var'))
@@ -81,7 +79,6 @@ CommentsList = {};
 
 IDinfo_state = '';	% this is optional in eventIDE report file headers
 LoggingInfo_state = '';
-ReportRecords_state = '';
 IDinfo_struct = struct([]);
 LoggingInfo_struct = struct([]);
 ProximitySensors_struct = struct();
@@ -94,6 +91,7 @@ Trial_struct = struct();
 CLIStatistics_struct = struct();
 Setup_struct = struct();
 Reward_struct = struct();
+Totals_struct = struct();
 CurrentEnumFullyParsed = 0;
 
 %loop over all lines in the ReportLog
@@ -139,6 +137,11 @@ while (~feof(ReportLog_fd))
 	[CurrentToken, remain] = strtok(current_line, ItemSeparator);
 	
 	switch (CurrentToken)
+		case {'TOTALS', 'TOTALSHEADER', 'TOTALSTYPES'}
+			% currently those are manual rewards, skip them for now?
+			% we want to build lists
+			Totals_struct = fnParseHeaderTypeDataRecord(Totals_struct, current_line, 'TOTALS', ItemSeparator, ArraySeparator);
+			continue
 		case {'REWARD', 'REWARDHEADER', 'REWARDTYPES'}
 			% currently those are manual rewards, skip them for now?
 			% we want to build lists
@@ -254,7 +257,7 @@ report_struct.CLIStatistics = CLIStatistics_struct;
 report_struct.Setup = Setup_struct;
 report_struct.Enums = Enums_struct;
 report_struct.Reward = Reward_struct;
-
+report_struct.Totals = Totals_struct;
 
 % add the additional information structure
 report_struct.info = info;
@@ -590,7 +593,7 @@ OutStruct.SCREEN.header = {'Timestamp', 'Name', 'ScreenWidth_mm', 'ScreenHeight_
 OutStruct.SCREEN.types = {'clTime', 'String', 'Double', 'Double', 'Int32', 'Int32', 'Double', 'Double'};
 
 
-OutStruct.SESSIONH.header = {'Timestamp', 'Name', 'TrialType', 'TouchTargetsNum', 'CuePositionalElementsIndices', ...
+OutStruct.SESSION.header = {'Timestamp', 'Name', 'TrialType', 'TouchTargetsNum', 'CuePositionalElementsIndices', ...
 	'TouchPositionalElementsIndices', 'CurrentlyHeldTouchPositionalElementsIndices', 'TrialNumber', 'InitialHoldDur_ms', 'CueAcqTouchDur_ms', ...
 	'CueHoldTouchDur_ms', 'CueTargetDelay_ms', 'TargetAcqTouchDur_ms', 'TargetHoldTouchDur_ms', 'TargetOffsetRewardDelay_ms', 'AbortTimeOut_ms; ITI_ms', ...
 	'TouchDotSize_mm', 'FixationDotSize_mm', 'TouchDotSize_pixel', 'TouchROISize_pixel', 'TouchROISize_mm', 'FixationDotSize_pixel', 'CorrectionTrialMethod', ...
@@ -666,10 +669,20 @@ function [ current_line ] = fnFixLogFileErrors( current_line )
 
 BadStrings = {'TRIALHEADER; Timestamp; TrialNumber; A_Name; A_CurrentParadigm; A_IsActive; A_IsHoldingAll; A_IsHoldingLeft; A_IsHoldingRight; A_IsTrialInitiated; A_PlaySuccessSound; A_PlayAbortSound; A_TrialType; A_TriaTypeString; A_TmpNextParadigmState; A_PerfectTrial; A_EvaluateProximitySensors; A_EvaluateTouchPanel; A_AllowedReachEffectors; A_ReachEffector; A_ReachEffectorString; A_IsTouchingCue; A_IsTouchingTarget01; A_Outcome; A_OutcomeString; A_NumCorrectResponses; A_AbortReason; A_AbortReasonString; A_AbortedState; A_AbortedStateString; A_NumInitiatedTrials; A_NumCorrectRewards; A_NumTotalRewards; A_TotalRewardActiveDur_ms; A_DualSubjectProgressConditional; A_DualSubjectAbortConditional; A_AbortTime_ms; A_CueOnsetTime_ms; A_HoldReleaseTime_ms; A_CueTouchTime_ms; A_CueReleaseTime_ms; A_TargetOnsetTime_ms; A_TargetTouchTime_ms; A_TargetOffsetTime_ms; A_TmpTouchReleaseTime_ms; A_TouchROIAllowedReleases_ms; A_TouchCuePosition; A_TouchTarget01Position; ; B_Name; B_CurrentParadigm; B_IsActive; B_IsHoldingAll; B_IsHoldingLeft; B_IsHoldingRight; B_IsTrialInitiated; B_PlaySuccessSound; B_PlayAbortSound; B_TrialType; B_TriaTypeString; B_TmpNextParadigmState; B_PerfectTrial; B_EvaluateProximitySensors; B_EvaluateTouchPanel; B_AllowedReachEffectors; B_ReachEffector; B_ReachEffectorString; B_IsTouchingCue; B_IsTouchingTarget01; B_Outcome; B_OutcomeString; B_NumCorrectResponses; B_AbortReason; B_AbortReasonString; B_AbortedState; B_AbortedStateString; B_NumInitiatedTrials; B_NumCorrectRewards; B_NumTotalRewards; B_TotalRewardActiveDur_ms; B_DualSubjectProgressConditional; B_DualSubjectAbortConditional; B_AbortTime_ms; B_CueOnsetTime_ms; B_HoldReleaseTime_ms; B_CueTouchTime_ms; B_CueReleaseTime_ms; B_TargetOnsetTime_ms; B_TargetTouchTime_ms; B_TargetOffsetTime_ms; B_TmpTouchReleaseTime_ms; B_TouchROIAllowedReleases_ms; B_TouchCuePosition; B_TouchTarget01Position; ; ', ...
 	'TRIALTYPES; clTime; Int32; String; String; Boolean; Boolean; Boolean; Boolean; Boolean; Boolean; Boolean; Int32; String; Int32; Boolean; Boolean; Boolean; Int32; Int32; String; Boolean; Boolean; Int32; String; Int32; Int32; String; Int32; String; Int32; Int32; Int32; Int32; String; String; clTime; clTime; clTime; clTime; clTime; clTime; clTime; clTime; clTime; clTime; clPoint; clPoint; ; String; String; Boolean; Boolean; Boolean; Boolean; Boolean; Boolean; Boolean; Int32; String; Int32; Boolean; Boolean; Boolean; Int32; Int32; String; Boolean; Boolean; Int32; String; Int32; Int32; String; Int32; String; Int32; Int32; Int32; Int32; String; String; clTime; clTime; clTime; clTime; clTime; clTime; clTime; clTime; clTime; clTime; clPoint; clPoint; ; ', ...
-	' TrialNumberA_Name;', ' Int32String;'};
+	' TrialNumberA_Name;', ' Int32String;', ...
+	'A_TouchTarget01Position', 'B_TouchTarget01Position', ...
+	'CuePositionalElementsIndices', 'CueAcqTouchDur_ms', 'CueHoldTouchDur_ms', 'CueTargetDelay_ms', 'TouchCuePosition', ...
+	'A_IsTouchingCue', 'A_CueOnsetTime_ms', 'A_CueTouchTime_ms', 'A_CueReleaseTime_ms', 'A_TouchCuePosition', ... 
+	'B_IsTouchingCue', 'B_CueOnsetTime_ms', 'B_CueTouchTime_ms', 'B_CueReleaseTime_ms', 'B_TouchCuePosition', ...
+	};
 ReplacementStrings = {'TRIALHEADER; Timestamp; TrialNumber; A_Name; A_CurrentParadigm; A_IsActive; A_IsHoldingAll; A_IsHoldingLeft; A_IsHoldingRight; A_IsTrialInitiated; A_PlaySuccessSound; A_PlayAbortSound; A_TrialType; A_TriaTypeString; A_TmpNextParadigmState; A_PerfectTrial; A_EvaluateProximitySensors; A_EvaluateTouchPanel; A_AllowedReachEffectors; A_ReachEffector; A_ReachEffectorString; A_IsTouchingCue; A_IsTouchingTarget01; A_Outcome; A_OutcomeString; A_NumCorrectResponses; A_AbortReason; A_AbortReasonString; A_AbortedState; A_AbortedStateString; A_NumInitiatedTrials; A_NumCorrectRewards; A_NumTotalRewards; A_TotalRewardActiveDur_ms; A_DualSubjectProgressConditional; A_DualSubjectAbortConditional; A_AbortTime_ms; A_CueOnsetTime_ms; A_HoldReleaseTime_ms; A_CueTouchTime_ms; A_CueReleaseTime_ms; A_TargetOnsetTime_ms; A_TargetTouchTime_ms; A_TargetOffsetTime_ms; A_TmpTouchReleaseTime_ms; A_TouchROIAllowedReleases_ms; A_TouchCuePosition; A_TouchTarget01Position; ; B_Name; B_CurrentParadigm; B_IsActive; B_IsHoldingAll; B_IsHoldingLeft; B_IsHoldingRight; B_IsTrialInitiated; B_PlaySuccessSound; B_PlayAbortSound; B_TrialType; B_TriaTypeString; B_TmpNextParadigmState; B_PerfectTrial; B_EvaluateProximitySensors; B_EvaluateTouchPanel; B_AllowedReachEffectors; B_ReachEffector; B_ReachEffectorString; B_IsTouchingCue; B_IsTouchingTarget01; B_Outcome; B_OutcomeString; B_NumCorrectResponses; B_AbortReason; B_AbortReasonString; B_AbortedState; B_AbortedStateString; B_NumInitiatedTrials; B_NumCorrectRewards; B_NumTotalRewards; B_TotalRewardActiveDur_ms; B_DualSubjectProgressConditional; B_DualSubjectAbortConditional; B_AbortTime_ms; B_CueOnsetTime_ms; B_HoldReleaseTime_ms; B_CueTouchTime_ms; B_CueReleaseTime_ms; B_TargetOnsetTime_ms; B_TargetTouchTime_ms; B_TargetOffsetTime_ms; B_TmpTouchReleaseTime_ms; B_TouchROIAllowedReleases_ms; B_TouchCuePosition; B_TouchTarget01Position; ', ...
 	'TRIALTYPES; clTime; Int32; String; String; Boolean; Boolean; Boolean; Boolean; Boolean; Boolean; Boolean; Int32; String; Int32; Boolean; Boolean; Boolean; Int32; Int32; String; Boolean; Boolean; Int32; String; Int32; Int32; String; Int32; String; Int32; Int32; Int32; Int32; String; String; clTime; clTime; clTime; clTime; clTime; clTime; clTime; clTime; clTime; clTime; clPoint; clPoint; ; String; String; Boolean; Boolean; Boolean; Boolean; Boolean; Boolean; Boolean; Int32; String; Int32; Boolean; Boolean; Boolean; Int32; Int32; String; Boolean; Boolean; Int32; String; Int32; Int32; String; Int32; String; Int32; Int32; Int32; Int32; String; String; clTime; clTime; clTime; clTime; clTime; clTime; clTime; clTime; clTime; clTime; clPoint; clPoint; ', ...
-	' TrialNumber; A_Name;', ' Int32; String;'};
+	' TrialNumber; A_Name;', ' Int32; String;', ...
+	'A_TouchSelectedTargetPosition', 'B_TouchSelectedTargetPosition', ...
+	'InitialFixationPositionalElementsIndices', 'InitialFixationAcqTouchDur_ms', 'InitialFixationHoldTouchDur_ms', 'InitialFixationTargetDelay_ms', 'TouchInitialFixationPosition', ...
+	'A_IsTouchingInitialFixation', 'A_InitialFixationOnsetTime_ms', 'A_InitialFixationTouchTime_ms', 'A_InitialFixationReleaseTime_ms', 'A_TouchInitialFixationPosition', ... 
+	'B_IsTouchingInitialFixation', 'B_InitialFixationOnsetTime_ms', 'B_InitialFixationTouchTime_ms', 'B_InitialFixationReleaseTime_ms', 'B_TouchInitialFixationPosition', ...
+	};
 
 for i_BadString = 1 : length(BadStrings)
 	CurrentBadString = BadStrings{i_BadString};
