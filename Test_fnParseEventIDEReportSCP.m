@@ -1,6 +1,9 @@
 function [ output_args ] = Test_fnParseEventIDEReportSCP( input_args )
 %TEST_FNPARSEEVENTIDEREPORTSCP Summary of this function goes here
 %   Detailed explanation goes here
+% The idea is to collect parser invocations that exercise specific
+% capabilities to easily test for regressions
+
 
 BaseDir = fullfile('/', 'space', 'data_local', 'moeller', 'DPZ', 'taskcontroller');
 
