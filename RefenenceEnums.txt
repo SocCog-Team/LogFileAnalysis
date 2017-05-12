@@ -1,0 +1,58 @@
+ENUMHEADER; EnumName; ABORT_NO_ABORT; ABORT_JAW; ABORT_BODY; ABORT_USE_INCORRECT_HAND; ABORT_DIRTY_SENSORS; ABORT_WRONG_TARGET_SELECTED; ABORT_RELEASE_SENSOR_HOLD_STATE; ABORT_EYE_FIX_ACQ_STATE; ABORT_HND_FIX_ACQ_STATE; ABORT_EYE_FIX_HOLD_STATE; ABORT_HND_FIX_HOLD_STATE; ABORT_EYE_TAR_ACQ_STATE; ABORT_HND_TAR_ACQ_STATE; ABORT_EYE_TAR_HOLD_STATE; ABORT_HND_TAR_HOLD_STATE; ABORT_EYE_TAR_ACQ_INV_STATE; ABORT_HND_TAR_ACQ_INV_STATE; ABORT_EYE_TAR_HOLD_INV_STATE; ABORT_HND_TAR_HOLD_INV_STATE; ABORT_EYE_CUE_ON_STATE; ABORT_HND_CUE_ON_STATE; ABORT_EYE_MEM_PER_STATE; ABORT_HND_MEM_PER_STATE; ABORT_EYE_DEL_PER_STATE; ABORT_HND_DEL_PER_STATE; UNSPECIFIED; WRONG_HAND_FIRST; WRONG_HAND_SECOND; EARLY_HAND_FIX_RELEASE; NO_HAND_FIX_ACQUISITION; EARLY_HAND_TARGET_RELEASE; NO_HAND_TARGET_ACQUISITION; MANUAL_TRIAL_ABORT; 
+ENUMTYPES; String; Int32; Int32; Int32; Int32; Int32; Int32; Int32; Int32; Int32; Int32; Int32; Int32; Int32; Int32; Int32; Int32; Int32; Int32; Int32; Int32; Int32; Int32; Int32; Int32; Int32; Int32; Int32; Int32; Int32; Int32; Int32; Int32; Int32; 
+ENUM; AbortReasons; 0; 1; 2; 3; 4; 5; 6; 7; 8; 9; 10; 11; 12; 13; 14; 15; 16; 17; 18; 19; 20; 21; 22; 23; 24; 25; 26; 27; 28; 29; 30; 31; 32; 
+
+ENUMHEADER; EnumName; NO_OUTCOME; REWARD; ABORT; ABORT_BY_OTHER; 
+ENUMTYPES; String; Int32; Int32; Int32; Int32; 
+ENUM; Outcomes; 0; 1; 2; 3; 
+
+ENUMHEADER; EnumName; none; left; not_left; right; not_right; both; not_both; 
+ENUMTYPES; String; Int32; Int32; Int32; Int32; Int32; Int32; Int32; 
+ENUM; ReachEffectors; 0; 1; 2; 3; 4; 5; 6; 
+
+ENUMHEADER; EnumName; right_A; left_A; right_B; left_B; 
+ENUMTYPES; String; Int32; Int32; Int32; Int32; 
+ENUM; PrxSensors; 0; 1; 2; 3; 
+
+ENUMHEADER; EnumName; SubjectA; SubjectB; 
+ENUMTYPES; String; Int32; Int32; 
+ENUM; Subjects; 0; 1; 
+
+ENUMHEADER; EnumName; NONE; DIRECT_REPEAT; DELAYED_REPEAT; 
+ENUMTYPES; String; Int32; Int32; Int32; 
+ENUM; CorrectionTrialMethods; 0; 1; 2; 
+
+ENUMHEADER; EnumName; NoParadigm; DAGDirectFreeGazeReaches; 
+ENUMTYPES; String; Int32; Int32; 
+ENUM; Paradigms; 0; 1; 
+
+ENUMHEADER; EnumName; None; DirectFreeGazeReaches; DirectFreeGazeFreeChoice; InformedChoice; 
+ENUMTYPES; String; Int32; Int32; Int32; Int32; 
+ENUM; TrialTypes; 0; 1; 2; 3; 
+
+ENUMHEADER; EnumName; NoState; InitializeParadigm; Wait4HandSensors; InitialHoldDelay; ShowInitialTargets; ShowInitialTargetsHold; CueTargetDelay; ShowTargets; ShowTargetsHold; TargetRewardDelay; EvaluateOutcome; ITI; Abort; ShowChoiceTargets; ShowChoiceTargetsHold; 
+ENUMTYPES; String; Int32; Int32; Int32; Int32; Int32; Int32; Int32; Int32; Int32; Int32; Int32; Int32; Int32; Int32; Int32; 
+ENUM; DAGDirectFreeGazeReaches; 0; 1; 2; 3; 4; 5; 6; 7; 8; 9; 10; 11; 12; 13; 14; 
+
+ENUMHEADER; EnumName; NONE; DIRECT_REPEAT; DELAYED_REPEAT; 
+ENUMTYPES; String; Int32; Int32; Int32; 
+ENUM; CorrectionTrialMethods; 0; 1; 2; 
+
+ENUMHEADER; EnumName; NONE; GUI; ALL_EQUAL; MANUAL; GENERICMATRIX; BOSMATRIXV01; 
+ENUMTYPES; String; Int32; Int32; Int32; Int32; Int32; Int32; 
+ENUM; RewardFunctions; 0; 1; 2; 3; 4; 5; 
+
+ENUMHEADER; EnumName; NONE; TASK_HIT; MANUAL; 
+ENUMTYPES; String; Int32; Int32; Int32; 
+ENUM; RewardReasons; 0; 1; 2; 
+
+ENUMHEADER; EnumName; NONE; GUI; ALL_EQUAL; MANUAL; GENERICMATRIX; BOSMATRIXV01; 
+ENUMTYPES; String; Int32; Int32; Int32; Int32; Int32; Int32; 
+ENUM; RewardFunctions; 0; 1; 2; 3; 4; 5; 
+
+ENUMHEADER; EnumName; NONE; PQLabs_G5S; ELO_PCAP; 
+ENUMTYPES; String; Int32; Int32; Int32; 
+ENUM; TouchDeviceTypes; 0; 1; 2;
+
+
+

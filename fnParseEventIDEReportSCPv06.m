@@ -6,6 +6,9 @@ function [ report_struct ] = fnParseEventIDEReportSCPv06( ReportLog_FQN, ItemSep
 %TODO: implement and benchmark a textscan based method with after parsing
 % Ideally each record type consist out of three lines, header, types, and
 % data
+%
+% TODO:
+%	Synthesize Enum_struct for sessions from before the Enums were stored
 
 
 global data_struct;	%% ATTENTION there can only be one concurrent user of this global variable, so reserve for the trial table
@@ -230,14 +233,19 @@ data_struct = fn_handle_data_struct('add_columns', data_struct, NewDataColumn, {
 % also add reward information to the trial table
 % for this we nned to parse the Reward_struct and create columns to add to
 % the data table
-if ~isempty(Reward_struct)
+if ~isempty(fieldnames(Reward_struct))
 	RewardPerTrialInfo_struct = fnExtractPerTrialRewardInfo(Reward_struct, size(data_struct.data, 1));
 	data_struct = fn_handle_data_struct('add_columns', data_struct, RewardPerTrialInfo_struct.data, RewardPerTrialInfo_struct.header);
 end
 
 % now try to add columns to the main data table, for enum indices
 % (zero-based), 
-if ~isempty(Enums_struct)
+
+if isempty(fieldnames(Enums_struct))
+	Enums_struct = fnSynthesizeEnumStruct(fullfile(mfilepath, 'RefenenceEnums.txt'), ItemSeparator, ArraySeparator);
+end
+
+if ~isempty(fieldnames(Enums_struct))
 	% for all named enums find matching columns and create and add the
 	% corresponding _idx column (add one to the C# indices), add the enum
 	% header to the unique_list with the appropriate name
@@ -722,7 +730,7 @@ BadStrings = {'TRIALHEADER; Timestamp; TrialNumber; A_Name; A_CurrentParadigm; A
 	' TrialNumberA_Name;', ' Int32String;', ...
 	'A_TouchTarget01Position', 'B_TouchTarget01Position', ...
 	'A_TouchCuePosition', 'B_TouchCuePosition', ...
-	'CuePositionalElementsIndices', 'CueAcqTouchDur_ms', 'CueHoldTouchDur_ms', 'CueTargetDelay_ms', 'TouchCuePosition', ...
+	' CuePositionalElementsIndices', ' CueAcqTouchDur_ms', ' CueHoldTouchDur_ms', ' CueTargetDelay_ms', ' TouchCuePosition', ...
 	'A_IsTouchingCue', 'A_CueOnsetTime_ms', 'A_CueTouchTime_ms', 'A_CueReleaseTime_ms', 'A_TouchCuePosition', ... 
 	'B_IsTouchingCue', 'B_CueOnsetTime_ms', 'B_CueTouchTime_ms', 'B_CueReleaseTime_ms', 'B_TouchCuePosition', ...
 	'A_name', 'B_name', ...
@@ -732,7 +740,7 @@ ReplacementStrings = {'TRIALHEADER; Timestamp; TrialNumber; A_Name; A_CurrentPar
 	' TrialNumber; A_Name;', ' Int32; String;', ...
 	'A_TouchSelectedTargetPosition', 'B_TouchSelectedTargetPosition', ...
 	'A_TouchInitialFixationPosition', 'B_TouchInitialFixationPosition', ...
-	'InitialFixationPositionalElementsIndices', 'InitialFixationAcqTouchDur_ms', 'InitialFixationHoldTouchDur_ms', 'InitialFixationTargetDelay_ms', 'TouchInitialFixationPosition', ...
+	' InitialFixationPositionalElementsIndices', ' InitialFixationAcqTouchDur_ms', ' InitialFixationHoldTouchDur_ms', ' InitialFixationTargetDelay_ms', ' TouchInitialFixationPosition', ...
 	'A_IsTouchingInitialFixation', 'A_InitialFixationOnsetTime_ms', 'A_InitialFixationTouchTime_ms', 'A_InitialFixationReleaseTime_ms', 'A_TouchInitialFixationPosition', ... 
 	'B_IsTouchingInitialFixation', 'B_InitialFixationOnsetTime_ms', 'B_InitialFixationTouchTime_ms', 'B_InitialFixationReleaseTime_ms', 'B_TouchInitialFixationPosition', ...
 	'A_Name', 'B_Name', ...
@@ -920,6 +928,78 @@ end
 RewardPerTrialInfo_struct.header = header;
 RewardPerTrialInfo_struct.cn = cn;
 RewardPerTrialInfo_struct.data = data;
+
+return
+end
+
+function [ Enums_struct ] = fnSynthesizeEnumStruct( ReferenceEnums_FQN, ItemSeparator, ArraySeparator )
+% early verion report files did not store the Enum definitions from C#,
+% here we simply add the Enums from 20150505. Since Enums were essentially
+% only added to and never renamed or reordered (with few exceptions)
+% these Enums should still give the correct names for report fields
+% indexing Enum data
+
+Enums_struct = struct();
+TmpEnum_struct = struct();
+
+% open the file
+RefEnums_fd = fopen(ReferenceEnums_FQN, 'r');
+if (RefEnums_fd == -1)
+	error(['Could not open ', num2str(RefEnums_fd), ', wrong directory?']);
+end
+
+CurrentEnumFullyParsed = 0;
+
+%loop over all lines in the ReportLog
+while (~feof(RefEnums_fd))
+	current_line = fgetl(RefEnums_fd);
+	
+	% skip empty lines
+	if isempty(current_line)
+		continue;
+	end
+	
+	% allow comments initiated by the hash sign, but
+	if isempty(strcmp(current_line(1), '#')) && ~strcmp(current_line, '###################');
+		continue;
+	end
+	
+	% now look for known types
+	[CurrentToken, remain] = strtok(current_line, ItemSeparator);
+	
+	switch (CurrentToken)
+		case {'ENUMHEADER', 'ENUMTYPES', 'ENUM'}
+			% needs special care as each individual enum reuses/redefines
+			% ENUMHEADER, ENUMTYPES, and ENUM records, so for each
+			% completed ENUM this requires clen-up (see below)
+			% rthe 
+			TmpEnum_struct = fnParseHeaderTypeDataRecord(TmpEnum_struct, current_line, 'ENUM', ItemSeparator);	
+			if ((isfield(TmpEnum_struct, 'first_empty_row_idx')) && (TmpEnum_struct.first_empty_row_idx > 1))
+				CurrentEnumFullyParsed = 1;
+			else
+				continue
+			end
+		otherwise
+			%disp('Doh...');
+	end
+	
+	% finalize the enum processing
+	if (CurrentEnumFullyParsed)
+		% now add TmpEnum_struct to Enums_struct, potentially also 
+		CurrentEnumName = (TmpEnum_struct.unique_lists.EnumName{1});
+		Enums_struct.Info = 'These can be used into columns that contain actual enum values [A|B]_${EnumName}(1:end-1); please note that C# enums are zero based';
+		Enums_struct.(CurrentEnumName).unique_lists.(CurrentEnumName) = TmpEnum_struct.header(2:end);
+		Enums_struct.(CurrentEnumName).EnumStruct = TmpEnum_struct;	% safety backup of parsed data
+		% get ready for the next enum
+		CurrentEnumFullyParsed = 0;
+		TmpEnum_struct = struct();	% clear the tmp struct
+		continue
+	end
+end
+% clean up
+fclose(RefEnums_fd);
+
+Enums_struct.EnumsDataSynthesized = 1;
 
 return
 end
