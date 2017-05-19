@@ -74,6 +74,8 @@ end
 ReportLog_fd = fopen(ReportLog_FQN, 'r');
 if (ReportLog_fd == -1)
 	error(['Could not open ', num2str(ReportLog_fd), ' none selected?']);
+else
+	disp(['Parsing: ', ReportLog_FQN]);
 end
 info.logfile_FQN = ReportLog_FQN;
 
@@ -96,6 +98,7 @@ Setup_struct = struct();
 Reward_struct = struct();
 Totals_struct = struct();
 CurrentEnumFullyParsed = 0;
+Stimulus_struct = struct();
 
 %loop over all lines in the ReportLog
 while (~feof(ReportLog_fd))
@@ -139,7 +142,7 @@ while (~feof(ReportLog_fd))
 	% now look for known types
 	[CurrentToken, remain] = strtok(current_line, ItemSeparator);
 	
-	switch (CurrentToken)
+	switch (strtrim(CurrentToken))
 		case {'TOTALS', 'TOTALSHEADER', 'TOTALSTYPES'}
 			% currently those are manual rewards, skip them for now?
 			% we want to build lists
@@ -172,6 +175,9 @@ while (~feof(ReportLog_fd))
 			continue
 		case {'CLISTATISTICS', 'CLISTATISTICSHEADER', 'CLISTATISTICSTYPES'}
 			CLIStatistics_struct = fnParseHeaderTypeDataRecord(CLIStatistics_struct, current_line, 'CLISTATISTICS', ItemSeparator, ArraySeparator);
+			continue
+		case {'STIMULUS', 'STIMULUSHEADER', 'STIMULUSTYPES'}
+			Stimulus_struct = fnParseHeaderTypeDataRecord(Stimulus_struct, current_line, 'STIMULUS', ItemSeparator, ArraySeparator);
 			continue
 		case {'SETUP', 'SETUPHEADER', 'SETUPTYPES'}
 			Setup_struct = fnParseHeaderTypeDataRecord(Setup_struct, current_line, 'SETUP', ItemSeparator, ArraySeparator);
@@ -266,6 +272,7 @@ report_struct.Setup = Setup_struct;
 report_struct.Enums = Enums_struct;
 report_struct.Reward = Reward_struct;
 report_struct.Totals = Totals_struct;
+report_struct.Stimuli = Stimulus_struct;
 
 % add the additional information structure
 report_struct.info = info;
@@ -421,6 +428,11 @@ if isempty(ReferenceHeaderAndTypesByRecordType_struct)
 end
 
 [RecordName, remain] = strtok(current_line, ItemSeparator);
+if (strcmp(' ', RecordName(end)))
+	disp('Recordname ends in space, clean up by strtrim.');
+	RecordName = strtrim(RecordName);
+end
+
 
 % to deal with header and type less REWARD records
 SynthesizeREWARDHEADER = 0;
@@ -507,7 +519,7 @@ if (~isfield(local_data_struct, 'header') || isempty(local_data_struct.header)) 
 				else
 					error('Found unexpected empty type, please investigate and fix the code...');
 				end
-			case {'String', 'Int32[]', 'clPoint[]'}
+			case {'String', 'string', 'Int32[]', 'clPoint[]'}
 				% strings need to to be indexed and variable length arrays
 				% should as well
 				if  length(CurrentProtoHeaderColumn) < 4 || ~strcmp(CurrentProtoHeaderColumn(end-3:end), '_idx')
@@ -516,7 +528,10 @@ if (~isfield(local_data_struct, 'header') || isempty(local_data_struct.header)) 
 				tmp_header{end+1} = CurrentProtoHeaderColumn;
 			case {'clPoint'}
 				tmp_header{end+1} = [CurrentProtoHeaderColumn, '_X'];
-				tmp_header{end+1} = [CurrentProtoHeaderColumn, '_Y'];
+				tmp_header{end+1} = [CurrentProtoHeaderColumn, '_Y'];			
+			case {'clSize'}
+				tmp_header{end+1} = [CurrentProtoHeaderColumn, '_Width'];
+				tmp_header{end+1} = [CurrentProtoHeaderColumn, '_Height'];	
 			case {'Boolean'}
 				% no special treatment for header, only for data
 				tmp_header{end+1} = CurrentProtoHeaderColumn;
@@ -567,6 +582,12 @@ if strcmp(RecordType, 'data')
 			case {'clPoint'}
 				%"1182,445 (6.029°, 23.167?°)"
 				tmp_XY_string = strtok(CurrentData, ' ('); % remove the DVA values
+				OutDataCells{end+1} = str2num(tmp_XY_string);
+			case {'clSize'}
+				%"56x56 (6.74°, 6.74°)"
+				tmp_SIZE_string = strtok(CurrentData, ' ('); % remove the DVA values
+				[tmp_WIDTH_string, tmp_HEIGHT_string] = strtok(CurrentData, 'x');
+				tmp_WIDTH_HEIGHT_string = [tmp_WIDTH_string, ', ', tmp_HEIGHT_string(2:end)];
 				OutDataCells{end+1} = str2num(tmp_XY_string);
 			case {'Boolean'}
 				% do not treat this as a String or indexed value
