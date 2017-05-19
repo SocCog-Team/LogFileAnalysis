@@ -5,7 +5,25 @@ function [ output_args ] = Test_fnParseEventIDEReportSCP( input_args )
 % capabilities to easily test for regressions
 
 
-BaseDir = fullfile('/', 'space', 'data_local', 'moeller', 'DPZ', 'taskcontroller');
+% ready this for unix systems...
+[sys_status, host_name] = system('hostname');
+switch host_name(1:end-1) % last char of host name result is ascii 10 (LF)
+	case {'hms-beagle2', 'hms-beagle2.local'}
+		if isdir('/Volumes/social_neuroscience_data/taskcontroller')
+			% remote data repository
+			BaseDir = fullfile('/', 'Volumes', 'social_neuroscience_data', 'taskcontroller');
+		else
+			% local data copy
+			disp('SCP data server share not mounted, falling back to local copy...');
+			BaseDir = fullfile('/', 'space', 'data_local', 'moeller', 'DPZ', 'taskcontroller');
+		end
+	case 'SCP-CTRL-00'
+		BaseDir = fullfile('Z:', 'taskcontroller');
+	case 'SCP-CTRL-00'
+		BaseDir = fullfile('Z:', 'taskcontroller');
+	otherwise
+		error(['Hostname ', host_name(1:end-1), ' not handeled yet']);
+end
 
 
 % % % example without reward logging A and B, without *TYPE records, so this
@@ -23,10 +41,17 @@ BaseDir = fullfile('/', 'space', 'data_local', 'moeller', 'DPZ', 'taskcontroller
 % % example with reward logging A and B, human human BoS type game
 % tmp_data = fnParseEventIDEReportSCPv06( fullfile(BaseDir, 'SCP-CTRL-00', 'SCP_DATA', 'SCP-CTRL-00', 'SESSIONLOGS', ...
 % 	'20170425', '20170425T160951.A_21001.B_22002.SCP_00.log'));
+% 
+% 
+% % example with stimulus position logging
+% tmp_data = fnParseEventIDEReportSCPv06( fullfile(BaseDir, 'SCP-CTRL-01', 'SCP_DATA', 'SCP-CTRL-01', 'SESSIONLOGS', ...
+% 	'20170519', '20170519T115737.A_TestPositionalElementsReporting6.B_None.SCP_01', '20170519T115737.A_TestPositionalElementsReporting6.B_None.SCP_01.log'));
 
 
-% example with stimulus position logging
+% 2 Human subjects with REWARD and STIMULUS record types
 tmp_data = fnParseEventIDEReportSCPv06( fullfile(BaseDir, 'SCP-CTRL-01', 'SCP_DATA', 'SCP-CTRL-01', 'SESSIONLOGS', ...
-	'20170519', '20170519T115737.A_TestPositionalElementsReporting6.B_None.SCP_01', '20170519T115737.A_TestPositionalElementsReporting6.B_None.SCP_01.log'));
+	'20170519', '20170519T130613.A_Daniela.B_Sebastian.SCP_01', '20170519T130613.A_Daniela.B_Sebastian.SCP_01.log'));
+
+
 
 end
