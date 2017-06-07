@@ -45,12 +45,16 @@ end
 % 
 % % example with stimulus position logging
 % tmp_data = fnParseEventIDEReportSCPv06( fullfile(BaseDir, 'SCP-CTRL-01', 'SCP_DATA', 'SCP-CTRL-01', 'SESSIONLOGS', ...
-% 	'20170519', '20170519T115737.A_TestPositionalElementsReporting6.B_None.SCP_01', '20170519T115737.A_TestPositionalElementsReporting6.B_None.SCP_01.log'));
+% % 	'20170519', '20170519T115737.A_TestPositionalElementsReporting6.B_None.SCP_01', '20170519T115737.A_TestPositionalElementsReporting6.B_None.SCP_01.log'));
+% 
+% 
+% % 2 Human subjects with REWARD and STIMULUS record types
+% tmp_data = fnParseEventIDEReportSCPv06( fullfile(BaseDir, 'SCP-CTRL-01', 'SCP_DATA', 'SCP-CTRL-01', 'SESSIONLOGS', ...
+% 	'20170519', '20170519T130613.A_Daniela.B_Sebastian.SCP_01', '20170519T130613.A_Daniela.B_Sebastian.SCP_01.log'));
 
-
-% 2 Human subjects with REWARD and STIMULUS record types
+% 2 NHP subjects with REWARD and STIMULUS record types
 tmp_data = fnParseEventIDEReportSCPv06( fullfile(BaseDir, 'SCP-CTRL-01', 'SCP_DATA', 'SCP-CTRL-01', 'SESSIONLOGS', ...
-	'20170519', '20170519T130613.A_Daniela.B_Sebastian.SCP_01', '20170519T130613.A_Daniela.B_Sebastian.SCP_01.log'));
+	'20170519', '20170519T141401.A_Magnus.B_Curius.SCP_01', '20170519T141401.A_Magnus.B_Curius.SCP_01.log'));
 
 
 

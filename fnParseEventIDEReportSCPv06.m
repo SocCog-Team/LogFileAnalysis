@@ -9,6 +9,8 @@ function [ report_struct ] = fnParseEventIDEReportSCPv06( ReportLog_FQN, ItemSep
 %
 % TODO:
 %	Synthesize Enum_struct for sessions from before the Enums were stored
+%	Add ENUM pre/suffix to unique lists and _*_idx columns created from
+%	enum values
 
 
 global data_struct;	%% ATTENTION there can only be one concurrent user of this global variable, so reserve for the trial table
@@ -849,7 +851,7 @@ for iEnumName = 1 : length(EnumNamesList)
 		if ~isempty(CurrentColumnIdx)		
 			% create an matching _idx column (C# is zero based!) also add to
 			% the column name struct
-			NewDataColumnName = [data_struct.header{CurrentColumnIdx}, '_idx'];
+			NewDataColumnName = [data_struct.header{CurrentColumnIdx}, 'ENUM_idx'];
 			NewDataColumn = data_struct.data(:, CurrentColumnIdx) + 1; % Change from zero based index to matlab one based indexing
 			
 			data_struct = fn_handle_data_struct('add_columns', data_struct, NewDataColumn, {NewDataColumnName});
@@ -862,8 +864,7 @@ for iEnumName = 1 : length(EnumNamesList)
 			%data_struct.cn.NewDataColumnName = length(data_struct.header);
 		
 			% add to the unique lists
-			data_struct.unique_lists.(NewDataColumnName) = Enums_struct.(CurrentEnumName).unique_lists.(CurrentEnumName);
-			
+			data_struct.unique_lists.(NewDataColumnName(1:end-4)) = Enums_struct.(CurrentEnumName).unique_lists.(CurrentEnumName);
 		end
 		
 	end	
