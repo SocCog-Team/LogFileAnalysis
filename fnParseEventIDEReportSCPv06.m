@@ -208,9 +208,9 @@ while (~feof(ReportLog_fd))
 			CurrentTokenUpperCaseRatio = mean(UpperCaseLogIdx);
 			
 			if (FoundUserData) && (CurrentTokenUpperCaseRatio == 1)
-				disp(['Encountered unknown record type label (', CurrentToken, '), in report file: ', ReportLog_FQN]);
-				disp(['Full report line: ', current_line]);
-				disp('Returning without parsing...');
+				disp(['WARNING: Encountered unknown record type label (', CurrentToken, '), in report file: ', ReportLog_FQN]);
+				disp(['WARNING: Full report line: ', current_line]);
+				disp('WARNING: Returning without parsing...');
 				return
 			end
 			
