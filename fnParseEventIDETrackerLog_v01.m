@@ -1,4 +1,4 @@
-function [ data_struct ] = parse_EventIDETrackerLog_v01( TrackerLog_FQN, column_separator )
+function [ data_struct ] = fnParseEventIDETrackerLog_v01( TrackerLog_FQN, column_separator )
 %PARSE_PQLABTRACKER Summary of this function goes here
 %   Try to read in eventIDE TrackerLog files for PQLabs touch panel
 %   elements. This will try to also intrapolate. the timestamps per sample
@@ -19,6 +19,9 @@ dbstop if error
 fq_mfilename = mfilename('fullpath');
 mfilepath = fileparts(fq_mfilename);
 
+
+version_string = '.v001';	% we append this to the filename to figure out whether a report file should be re-parsed... this needs to be updated whenthe parser changes
+
 suffix_string = '';
 test_timing = 0;
 add_method = 'add_row_to_global_struct';		% add_row (really slow, just use for gold truth control), add_row_to_global_struct
@@ -26,7 +29,7 @@ pre_allocate_data = 1;
 batch_grow_data_array = 1;	% should be default
 
 if (test_timing)
-	suffix_string = ['.', add_method];
+	suffix_string = [suffix_string, '.', add_method];
 end
 	
 info.logfile_FQN = [];
@@ -168,7 +171,7 @@ data_struct.info = info;
 
 data_struct.info.processing_time_ms = toc(timestamps.(mfilename).start);
 if (save_matfile)
-	save(fullfile(TrackerLog_Dir, [TrackerLog_Name, suffix_string, '.mat']), 'data_struct');
+	save(fullfile(TrackerLog_Dir, [TrackerLog_Name, suffix_string, version_string, '.mat']), 'data_struct');
 end
 
 timestamps.(mfilename).end = toc(timestamps.(mfilename).start);

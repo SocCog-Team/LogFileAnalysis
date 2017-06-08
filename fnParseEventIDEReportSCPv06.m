@@ -24,6 +24,8 @@ mfilepath = fileparts(fq_mfilename);
 
 
 save_matfile = 1;
+version_string = '.v006';	% we append this to the filename to figure out whether a report file should be re-parsed... this needs to be updated whenthe parser changes
+
 suffix_string = '';
 test_timing = 0;
 add_method = 'add_row_to_global_struct';		% add_row (really slow, just use for gold truth control), add_row_to_global_struct
@@ -32,7 +34,7 @@ batch_grow_data_array = 1;	% should be default
 
 
 if (test_timing)
-	suffix_string = ['.', add_method];
+	suffix_string = [suffix_string, '.', add_method];
 end
 
 % general log file information
@@ -306,7 +308,7 @@ report_struct.info = info;
 
 report_struct.info.processing_time_ms = toc(timestamps.(mfilename).start);
 if (save_matfile)
-	save(fullfile(ReportLog_Dir, [ReportLog_Name, suffix_string, '.mat']), 'report_struct');
+	save(fullfile(ReportLog_Dir, [ReportLog_Name, suffix_string, version_string, '.mat']), 'report_struct');
 end
 
 timestamps.(mfilename).end = toc(timestamps.(mfilename).start);
