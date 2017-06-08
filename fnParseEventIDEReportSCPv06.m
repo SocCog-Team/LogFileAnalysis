@@ -46,7 +46,7 @@ info.experiment_eve = [];
 % this?
 data_struct.header = {};
 data_struct.data = [];
-
+report_struct = struct();
 
 if (~exist('ReportLog_FQN', 'var'))
 	[ReportLog_Name, ReportLog_Dir] = uigetfile('*.log', 'Select the eventIDE log file to parse');
@@ -100,6 +100,7 @@ Setup_struct = struct();
 Reward_struct = struct();
 Totals_struct = struct();
 CurrentEnumFullyParsed = 0;
+FoundUserData = 0;
 Stimulus_struct = struct();
 
 %loop over all lines in the ReportLog
@@ -138,6 +139,7 @@ while (~feof(ReportLog_fd))
 			if isfield(LoggingInfo_struct, 'ArraySeparator') && ~ OverrideArraySeparator
 				ArraySeparator = LoggingInfo_struct.ArraySeparator;
 			end
+			FoundUserData = 1;
 			continue
 	end
 	
@@ -149,14 +151,17 @@ while (~feof(ReportLog_fd))
 			% currently those are manual rewards, skip them for now?
 			% we want to build lists
 			Totals_struct = fnParseHeaderTypeDataRecord(Totals_struct, current_line, 'TOTALS', ItemSeparator, ArraySeparator);
+			FoundUserData = 1;
 			continue
 		case {'REWARD', 'REWARDHEADER', 'REWARDTYPES'}
 			% currently those are manual rewards, skip them for now?
 			% we want to build lists
 			Reward_struct = fnParseHeaderTypeDataRecord(Reward_struct, current_line, 'REWARD', ItemSeparator, ArraySeparator);
+			FoundUserData = 1;
 			continue
 		case {'PROXIMITYSENSORS', 'PROXIMITYSENSORSHEADER', 'PROXIMITYSENSORSTYPES'}
 			ProximitySensors_struct = fnParseHeaderTypeDataRecord(ProximitySensors_struct, current_line, 'PROXIMITYSENSORS', ItemSeparator, ArraySeparator);
+			FoundUserData = 1;
 			continue
 		case {'ENUMHEADER', 'ENUMTYPES', 'ENUM'}
 			% needs special care as each individual enum reuses/redefines
@@ -164,33 +169,51 @@ while (~feof(ReportLog_fd))
 			% completed ENUM this requires clen-up (see below)
 			% rthe 
 			TmpEnum_struct = fnParseHeaderTypeDataRecord(TmpEnum_struct, current_line, 'ENUM', ItemSeparator);	
+			FoundUserData = 1;
 			if ((isfield(TmpEnum_struct, 'first_empty_row_idx')) && (TmpEnum_struct.first_empty_row_idx > 1))
 				CurrentEnumFullyParsed = 1;
 			else
 				continue
 			end
 		case {'TIMING', 'TIMINGHEADER', 'TIMINGTYPES'}
-			Timing_struct = fnParseHeaderTypeDataRecord(Timing_struct, current_line, 'TIMING', ItemSeparator, ArraySeparator);		
+			Timing_struct = fnParseHeaderTypeDataRecord(Timing_struct, current_line, 'TIMING', ItemSeparator, ArraySeparator);	
+			FoundUserData = 1;
 			continue
 		case {'SESSION', 'SESSIONHEADER', 'SESSIONTYPES'}
 			Session_struct = fnParseHeaderTypeDataRecord(Session_struct, current_line, 'SESSION', ItemSeparator, ArraySeparator);
+			FoundUserData = 1;
 			continue
 		case {'CLISTATISTICS', 'CLISTATISTICSHEADER', 'CLISTATISTICSTYPES'}
 			CLIStatistics_struct = fnParseHeaderTypeDataRecord(CLIStatistics_struct, current_line, 'CLISTATISTICS', ItemSeparator, ArraySeparator);
+			FoundUserData = 1;
 			continue
 		case {'STIMULUS', 'STIMULUSHEADER', 'STIMULUSTYPES'}
 			Stimulus_struct = fnParseHeaderTypeDataRecord(Stimulus_struct, current_line, 'STIMULUS', ItemSeparator, ArraySeparator);
+			FoundUserData = 1;
 			continue
 		case {'SETUP', 'SETUPHEADER', 'SETUPTYPES'}
 			Setup_struct = fnParseHeaderTypeDataRecord(Setup_struct, current_line, 'SETUP', ItemSeparator, ArraySeparator);
+			FoundUserData = 1;
 			continue
 		case {'SCREEN', 'SCREENHEADER', 'SCREENTYPES'}
 			Screen_struct = fnParseHeaderTypeDataRecord(Screen_struct, current_line, 'SCREEN', ItemSeparator, ArraySeparator);
+			FoundUserData = 1;
 			continue
 		case {'TRIAL', 'TRIALHEADER', 'TRIALTYPES', '\nTRIAL', '\nTRIALHEADER', '\nTRIALTYPES'}
 			data_struct = fnParseHeaderTypeDataRecord(data_struct, current_line, 'TRIAL', ItemSeparator, ArraySeparator);
+			FoundUserData = 1;
 			continue
 		otherwise
+			UpperCaseLogIdx = isstrprop(CurrentToken,'upper');
+			CurrentTokenUpperCaseRatio = mean(UpperCaseLogIdx);
+			
+			if (FoundUserData) && (CurrentTokenUpperCaseRatio == 1)
+				disp(['Encountered unknown record type label (', CurrentToken, '), in report file: ', ReportLog_FQN]);
+				disp(['Full report line: ', current_line]);
+				disp('Returning without parsing...');
+				return
+			end
+			
 			%disp('Doh...');
 	end
 	
@@ -208,12 +231,14 @@ while (~feof(ReportLog_fd))
 	end
 	
 	
-	
-	% anything not parsed until here most likely is an eventIDE  startup
-	% variable so just treat it like one
-	[VariableName, VariableValue] = strtok(current_line, ':');
-	SanitizedVariableName = sanitize_col_name_for_matlab(VariableName);
-	StartUpVariables_struct.(SanitizedVariableName) = strtrim(VariableValue(2:end));
+	if ~(FoundUserData)
+		% anything not parsed until here most likely is an eventIDE  startup
+		% variable so just treat it like one,
+		% Note, startup variables live before site specific record types
+		[VariableName, VariableValue] = strtok(current_line, ':');
+		SanitizedVariableName = sanitize_col_name_for_matlab(VariableName);
+		StartUpVariables_struct.(SanitizedVariableName) = strtrim(VariableValue(2:end));
+	end
 end
 
 if ~(exist('StartUpVariables_struct', 'var'))

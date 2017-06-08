@@ -57,5 +57,4 @@ tmp_data = fnParseEventIDEReportSCPv06( fullfile(BaseDir, 'SCP-CTRL-01', 'SCP_DA
 	'20170519', '20170519T141401.A_Magnus.B_Curius.SCP_01', '20170519T141401.A_Magnus.B_Curius.SCP_01.log'));
 
 
-
 end
