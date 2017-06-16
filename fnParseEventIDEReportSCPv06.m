@@ -55,6 +55,9 @@ if (~exist('ReportLog_FQN', 'var'))
 	[ReportLog_Name, ReportLog_Dir] = uigetfile('*.log', 'Select the eventIDE log file to parse');
 	ReportLog_FQN = fullfile(ReportLog_Dir, ReportLog_Name);
 	%save_matfile = 1;
+elseif isempty(ReportLog_FQN)
+	% just return the current version number as second return value
+	return
 else
 	[ReportLog_Dir, ReportLog_Name] = fileparts(ReportLog_FQN);
 	%save_matfile = 0;
@@ -170,8 +173,8 @@ while (~feof(ReportLog_fd))
 			% needs special care as each individual enum reuses/redefines
 			% ENUMHEADER, ENUMTYPES, and ENUM records, so for each
 			% completed ENUM this requires clen-up (see below)
-			% rthe 
-			TmpEnum_struct = fnParseHeaderTypeDataRecord(TmpEnum_struct, current_line, 'ENUM', ItemSeparator);	
+			% rthe
+			TmpEnum_struct = fnParseHeaderTypeDataRecord(TmpEnum_struct, current_line, 'ENUM', ItemSeparator);
 			FoundUserData = 1;
 			if ((isfield(TmpEnum_struct, 'first_empty_row_idx')) && (TmpEnum_struct.first_empty_row_idx > 1))
 				CurrentEnumFullyParsed = 1;
@@ -179,7 +182,7 @@ while (~feof(ReportLog_fd))
 				continue
 			end
 		case {'TIMING', 'TIMINGHEADER', 'TIMINGTYPES'}
-			Timing_struct = fnParseHeaderTypeDataRecord(Timing_struct, current_line, 'TIMING', ItemSeparator, ArraySeparator);	
+			Timing_struct = fnParseHeaderTypeDataRecord(Timing_struct, current_line, 'TIMING', ItemSeparator, ArraySeparator);
 			FoundUserData = 1;
 			continue
 		case {'SESSION', 'SESSIONHEADER', 'SESSIONTYPES'}
@@ -222,7 +225,7 @@ while (~feof(ReportLog_fd))
 	
 	% finalize the enum processing
 	if (CurrentEnumFullyParsed)
-		% now add TmpEnum_struct to Enums_struct, potentially also 
+		% now add TmpEnum_struct to Enums_struct, potentially also
 		CurrentEnumName = (TmpEnum_struct.unique_lists.EnumName{1});
 		Enums_struct.Info = 'These can be used into columns that contain actual enum values [A|B]_${EnumName}(1:end-1); please note that C# enums are zero based';
 		Enums_struct.(CurrentEnumName).unique_lists.(CurrentEnumName) = TmpEnum_struct.header(2:end);
@@ -275,7 +278,7 @@ if ~isempty(fieldnames(Reward_struct))
 end
 
 % now try to add columns to the main data table, for enum indices
-% (zero-based), 
+% (zero-based),
 
 if isempty(fieldnames(Enums_struct))
 	Enums_struct = fnSynthesizeEnumStruct(fullfile(mfilepath, 'RefenenceEnums.txt'), ItemSeparator, ArraySeparator);
@@ -309,6 +312,7 @@ report_struct.info = info;
 
 report_struct.info.processing_time_ms = toc(timestamps.(mfilename).start);
 if (save_matfile)
+	disp(['Saving parsed report file as ', fullfile(ReportLog_Dir, [ReportLog_Name, suffix_string, version_string, '.mat'])]);
 	save(fullfile(ReportLog_Dir, [ReportLog_Name, suffix_string, version_string, '.mat']), 'report_struct');
 end
 
@@ -384,15 +388,15 @@ while ~(feof(ReportLog_fd))
 end
 
 if isfield(IDinfo_struct, 'DateString') && isfield(IDinfo_struct, 'TimeString')
-    
-    TmpDateTimeString = [IDinfo_struct.DateString, ', ', IDinfo_struct.TimeString];
-    if ~isempty(findstr(TmpDateTimeString, '/'))
-        IDinfo_struct.DateVector = datevec(TmpDateTimeString, 'mm/dd/yyyy, HH:MM PM');
-    end
-
-    if ~isempty(findstr(TmpDateTimeString, '-'))
-        IDinfo_struct.DateVector = datevec(TmpDateTimeString, 'yyyy-mm-dd, HH:MM');
-    end
+	
+	TmpDateTimeString = [IDinfo_struct.DateString, ', ', IDinfo_struct.TimeString];
+	if ~isempty(findstr(TmpDateTimeString, '/'))
+		IDinfo_struct.DateVector = datevec(TmpDateTimeString, 'mm/dd/yyyy, HH:MM PM');
+	end
+	
+	if ~isempty(findstr(TmpDateTimeString, '-'))
+		IDinfo_struct.DateVector = datevec(TmpDateTimeString, 'yyyy-mm-dd, HH:MM');
+	end
 end
 
 
@@ -472,7 +476,7 @@ if strcmp(RecordName, 'REWARD') && ~isfield(local_data_struct, 'raw') %&& ~isfie
 	SynthesizeREWARDHEADER = 1;
 	input_current_line = current_line;
 	RecordName = 'REWARDHEADER';
-	current_line = 'REWARDHEADER; RewardStartTime; TrialNumber; Name; RewardReasonString; NumberRewardPulsesDelivered; RewardPulseDuration';	
+	current_line = 'REWARDHEADER; RewardStartTime; TrialNumber; Name; RewardReasonString; NumberRewardPulsesDelivered; RewardPulseDuration';
 end
 
 if ~isempty(regexp(RecordName, 'HEADER$'))
@@ -496,7 +500,7 @@ if ~isempty(regexp(RecordName, 'HEADER$'))
 	
 	local_data_struct.raw.header4matlab = tmp_header;
 	%local_data_struct = fn_handle_data_struct('create', tmp_header); % do not use batching, as we will only have relatively few trials anyway
-
+	
 elseif ~isempty(regexp(RecordName, 'TYPES$'))
 	RecordType = 'types';
 	
@@ -521,8 +525,8 @@ if (SynthesizeREWARDHEADER)
 	current_line = input_current_line;
 	[RecordName, remain] = strtok(current_line, ItemSeparator);
 	RecordType = 'data';
-end	
-	
+end
+
 % older report logs had headers but no explicit type information, try to
 % get this by matching
 if strcmp(RecordType, 'data') && ~isempty(local_data_struct.raw.header) && ~isfield(local_data_struct.raw, 'types')
@@ -538,9 +542,9 @@ if (~isfield(local_data_struct, 'header') || isempty(local_data_struct.header)) 
 	for iColumn = 1 : length(local_data_struct.raw.header4matlab)
 		CurrentProtoHeaderColumn = local_data_struct.raw.header4matlab{iColumn};
 		
-% 		if strcmp(RecordTypeHint, 'TRIAL')
-% 			disp('Doh...');
-% 		end
+		% 		if strcmp(RecordTypeHint, 'TRIAL')
+		% 			disp('Doh...');
+		% 		end
 		
 		switch (local_data_struct.raw.types{iColumn})
 			case {''}
@@ -558,10 +562,10 @@ if (~isfield(local_data_struct, 'header') || isempty(local_data_struct.header)) 
 				tmp_header{end+1} = CurrentProtoHeaderColumn;
 			case {'clPoint'}
 				tmp_header{end+1} = [CurrentProtoHeaderColumn, '_X'];
-				tmp_header{end+1} = [CurrentProtoHeaderColumn, '_Y'];			
+				tmp_header{end+1} = [CurrentProtoHeaderColumn, '_Y'];
 			case {'clSize'}
 				tmp_header{end+1} = [CurrentProtoHeaderColumn, '_Width'];
-				tmp_header{end+1} = [CurrentProtoHeaderColumn, '_Height'];	
+				tmp_header{end+1} = [CurrentProtoHeaderColumn, '_Height'];
 			case {'Boolean'}
 				% no special treatment for header, only for data
 				tmp_header{end+1} = CurrentProtoHeaderColumn;
@@ -782,7 +786,7 @@ BadStrings = {'TRIALHEADER; Timestamp; TrialNumber; A_Name; A_CurrentParadigm; A
 	'A_TouchTarget01Position', 'B_TouchTarget01Position', ...
 	'A_TouchCuePosition', 'B_TouchCuePosition', ...
 	' CuePositionalElementsIndices', ' CueAcqTouchDur_ms', ' CueHoldTouchDur_ms', ' CueTargetDelay_ms', ' TouchCuePosition', ...
-	'A_IsTouchingCue', 'A_CueOnsetTime_ms', 'A_CueTouchTime_ms', 'A_CueReleaseTime_ms', 'A_TouchCuePosition', ... 
+	'A_IsTouchingCue', 'A_CueOnsetTime_ms', 'A_CueTouchTime_ms', 'A_CueReleaseTime_ms', 'A_TouchCuePosition', ...
 	'B_IsTouchingCue', 'B_CueOnsetTime_ms', 'B_CueTouchTime_ms', 'B_CueReleaseTime_ms', 'B_TouchCuePosition', ...
 	'A_name', 'B_name', ...
 	'IntialFixation', ...
@@ -793,7 +797,7 @@ ReplacementStrings = {'TRIALHEADER; Timestamp; TrialNumber; A_Name; A_CurrentPar
 	'A_TouchSelectedTargetPosition', 'B_TouchSelectedTargetPosition', ...
 	'A_TouchInitialFixationPosition', 'B_TouchInitialFixationPosition', ...
 	' InitialFixationPositionalElementsIndices', ' InitialFixationAcqTouchDur_ms', ' InitialFixationHoldTouchDur_ms', ' InitialFixationTargetDelay_ms', ' TouchInitialFixationPosition', ...
-	'A_IsTouchingInitialFixation', 'A_InitialFixationOnsetTime_ms', 'A_InitialFixationTouchTime_ms', 'A_InitialFixationReleaseTime_ms', 'A_TouchInitialFixationPosition', ... 
+	'A_IsTouchingInitialFixation', 'A_InitialFixationOnsetTime_ms', 'A_InitialFixationTouchTime_ms', 'A_InitialFixationReleaseTime_ms', 'A_TouchInitialFixationPosition', ...
 	'B_IsTouchingInitialFixation', 'B_InitialFixationOnsetTime_ms', 'B_InitialFixationTouchTime_ms', 'B_InitialFixationReleaseTime_ms', 'B_TouchInitialFixationPosition', ...
 	'A_Name', 'B_Name', ...
 	'InitialFixation', ...
@@ -818,8 +822,8 @@ for i_BadString = 1 : length(BadStrings)
 				current_line = [CurrentReplacementString, tmp_current_line(CurrentBadStringEndIdx+1:end)];
 			else
 				current_line = [tmp_current_line(1:CurrentBadStringStartIdx-1), CurrentReplacementString, tmp_current_line(CurrentBadStringEndIdx+1:end)];
-			end			
-			disp(['Replaced unwanted string: "', CurrentBadString, '" with "', CurrentReplacementString, '".']);			
+			end
+			disp(['Replaced unwanted string: "', CurrentBadString, '" with "', CurrentReplacementString, '".']);
 		end
 	end
 	
@@ -841,9 +845,9 @@ function [ data_struct ] = fnAddEnumsToDataStruct( data_struct, Enums_struct, Da
 
 EnumNamesList = fieldnames(Enums_struct);
 
-for iEnumName = 1 : length(EnumNamesList) 
+for iEnumName = 1 : length(EnumNamesList)
 	CurrentEnumName = EnumNamesList{iEnumName};
-	% the first 
+	% the first
 	if strcmp(CurrentEnumName, 'Info')
 		if (iEnumName ~= 1)
 			error(['The Info struct we created is at the wrong position, this needs investigation...'])
@@ -870,7 +874,7 @@ for iEnumName = 1 : length(EnumNamesList)
 			MatchingEnumNameList{SearchStringCounter} = CurrentEnumName;
 			SearchStringList{SearchStringCounter} = CurrentSearchString;
 		end
-	end	
+	end
 	
 	% now go and search the matching columns in the data_struct.header
 	for iSearchString = 1 : NumSearchStrings
@@ -878,7 +882,7 @@ for iEnumName = 1 : length(EnumNamesList)
 		% find the column
 		CurrentColumnIdx = find(strcmp(CurrentSearchString, data_struct.header));
 		
-		if ~isempty(CurrentColumnIdx)		
+		if ~isempty(CurrentColumnIdx)
 			% create an matching _idx column (C# is zero based!) also add to
 			% the column name struct
 			NewDataColumnName = [data_struct.header{CurrentColumnIdx}, 'ENUM_idx'];
@@ -892,12 +896,12 @@ for iEnumName = 1 : length(EnumNamesList)
 			%data_struct.data(:,end+1) = NewDataColumn;
 			%% add the column name to the column name structure
 			%data_struct.cn.NewDataColumnName = length(data_struct.header);
-		
+			
 			% add to the unique lists
 			data_struct.unique_lists.(NewDataColumnName(1:end-4)) = Enums_struct.(CurrentEnumName).unique_lists.(CurrentEnumName);
 		end
 		
-	end	
+	end
 end
 
 return
@@ -909,7 +913,7 @@ function [ RewardPerTrialInfo_struct ] = fnExtractPerTrialRewardInfo( Reward_str
 % rewards per side, so or A and B
 
 header = {'A_NumberRewardPulsesDelivered_HIT', 'B_NumberRewardPulsesDelivered_HIT', ...
-		'A_NumberRewardPulsesDelivered_MANUAL', 'B_NumberRewardPulsesDelivered_MANUAL'};
+	'A_NumberRewardPulsesDelivered_MANUAL', 'B_NumberRewardPulsesDelivered_MANUAL'};
 cn.A_NumberRewardPulsesDelivered_HIT = 1;
 cn.B_NumberRewardPulsesDelivered_HIT = 2;
 cn.A_NumberRewardPulsesDelivered_MANUAL = 3;
@@ -968,7 +972,7 @@ for iTrial = 1 : NumTrials
 				ColSufffix = '_MANUAL';
 			end
 		end
-	
+		
 		if (~isempty(ColPrefix) && ~isempty(ColSufffix))
 			CurrentNumPulsesDelivered = Reward_struct.data(CurrentRewardLogLineIdx, Reward_struct.cn.NumberRewardPulsesDelivered);
 			tmp = data(CurrentTrialNum, cn.([ColPrefix, CommonColumnFragmentString, ColSufffix]));
@@ -1024,8 +1028,8 @@ while (~feof(RefEnums_fd))
 			% needs special care as each individual enum reuses/redefines
 			% ENUMHEADER, ENUMTYPES, and ENUM records, so for each
 			% completed ENUM this requires clen-up (see below)
-			% rthe 
-			TmpEnum_struct = fnParseHeaderTypeDataRecord(TmpEnum_struct, current_line, 'ENUM', ItemSeparator);	
+			% rthe
+			TmpEnum_struct = fnParseHeaderTypeDataRecord(TmpEnum_struct, current_line, 'ENUM', ItemSeparator);
 			if ((isfield(TmpEnum_struct, 'first_empty_row_idx')) && (TmpEnum_struct.first_empty_row_idx > 1))
 				CurrentEnumFullyParsed = 1;
 			else
@@ -1037,7 +1041,7 @@ while (~feof(RefEnums_fd))
 	
 	% finalize the enum processing
 	if (CurrentEnumFullyParsed)
-		% now add TmpEnum_struct to Enums_struct, potentially also 
+		% now add TmpEnum_struct to Enums_struct, potentially also
 		CurrentEnumName = (TmpEnum_struct.unique_lists.EnumName{1});
 		Enums_struct.Info = 'These can be used into columns that contain actual enum values [A|B]_${EnumName}(1:end-1); please note that C# enums are zero based';
 		Enums_struct.(CurrentEnumName).unique_lists.(CurrentEnumName) = TmpEnum_struct.header(2:end);
