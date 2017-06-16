@@ -1,4 +1,4 @@
-function [ report_struct ] = fnParseEventIDEReportSCPv06( ReportLog_FQN, ItemSeparator, ArraySeparator )
+function [ report_struct, version_string ] = fnParseEventIDEReportSCPv06( ReportLog_FQN, ItemSeparator, ArraySeparator )
 %fnParseEventIDEReportSCP parse the EventIDE report files generates as part
 %of the social cognition plattform at the DPZ
 %   Try to read in eventIDE report files for DPZ SCP experiments
@@ -49,6 +49,7 @@ info.experiment_eve = [];
 data_struct.header = {};
 data_struct.data = [];
 report_struct = struct();
+
 
 if (~exist('ReportLog_FQN', 'var'))
 	[ReportLog_Name, ReportLog_Dir] = uigetfile('*.log', 'Select the eventIDE log file to parse');
