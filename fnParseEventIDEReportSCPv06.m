@@ -397,6 +397,10 @@ if isfield(IDinfo_struct, 'DateString') && isfield(IDinfo_struct, 'TimeString')
 	if ~isempty(findstr(TmpDateTimeString, '-'))
 		IDinfo_struct.DateVector = datevec(TmpDateTimeString, 'yyyy-mm-dd, HH:MM');
 	end
+	
+	if ~isempty(findstr(TmpDateTimeString, '.'))
+		IDinfo_struct.DateVector = datevec(TmpDateTimeString, 'dd.mm.yyyy, HH:MM');
+	end
 end
 
 
