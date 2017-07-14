@@ -62,6 +62,11 @@ else
 	[ReportLog_Dir, ReportLog_Name] = fileparts(ReportLog_FQN);
 	%save_matfile = 0;
 end
+if ~exist(ReportLog_FQN, 'file')
+    disp(['File not found: ', ReportLog_FQN]);
+    return
+end    
+
 tmp_dir_ReportLog_FQN = dir(ReportLog_FQN);
 ReportLog_size_bytes  = tmp_dir_ReportLog_FQN.bytes;
 
