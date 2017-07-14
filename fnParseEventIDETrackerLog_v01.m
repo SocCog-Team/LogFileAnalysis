@@ -251,7 +251,7 @@ while ~(log_line_parsed)
 		for i_glm = 1 : 4
 			[GLM_keyvaluepair, GLM_keywords] = strtok(GLM_keywords, ' ');
 			[GLM_key, GLM_value] = strtok(GLM_keyvaluepair, '=');
-			GLM_values(i_glm) = str2double(GLM_value);
+			GLM_values(i_glm) = str2double(GLM_value(2:end));   % exclude the leading separator
 		end
 		column_idx = column_idx + 3;
 		if isempty(row_data{end})
