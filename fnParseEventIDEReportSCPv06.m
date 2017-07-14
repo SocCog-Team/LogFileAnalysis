@@ -7,11 +7,11 @@ function [ report_struct, version_string ] = fnParseEventIDEReportSCPv06( Report
 % Ideally each record type consist out of three lines, header, types, and
 % data
 %
+% DONE:
+%
 % TODO:
 %	Synthesize Enum_struct for sessions from before the Enums were stored
-%	Add ENUM pre/suffix to unique lists and _*_idx columns created from
-%	enum values
-
+%	Add ENUM pre/suffix to unique lists and _*_idx columns created from	enum values
 
 global data_struct;	%% ATTENTION there can only be one concurrent user of this global variable, so reserve for the trial table
 clear global data_struct % clear on return as well?
