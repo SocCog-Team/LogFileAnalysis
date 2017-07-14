@@ -171,6 +171,7 @@ data_struct.info = info;
 
 data_struct.info.processing_time_ms = toc(timestamps.(mfilename).start);
 if (save_matfile)
+    disp(['Saving parsed data as: ', fullfile(TrackerLog_Dir, [TrackerLog_Name, suffix_string, version_string, '.mat'])]);
 	save(fullfile(TrackerLog_Dir, [TrackerLog_Name, suffix_string, version_string, '.mat']), 'data_struct');
 end
 
@@ -209,6 +210,10 @@ while (~LogHeader_parsed)
 			header{end+1} = 'GLM_Coefficients_OffsetX';
 			header{end+1} = 'GLM_Coefficients_GainY';
 			header{end+1} = 'GLM_Coefficients_OffsetY';
+        case {'User Field'}    
+            % assume userfileds to contain strings as we can not know
+            % better
+            header{end+1} = 'User_Field_idx';
 		otherwise
 			current_raw_column_name = sanitize_col_name_for_matlab(current_raw_column_name);
 			header{end+1} = current_raw_column_name;
@@ -264,8 +269,20 @@ while ~(log_line_parsed)
 		else
 			row_data{end + 1} = current_column_data;
 		end
+    end
+    
+    % catch UserFields containing string data
+    if ~(column_is_GLM) && ~(column_is_string) && isnan(str2double(current_column_data))
+		column_is_string = 1;
+        error('Found string type data in non handled column type (', cur_col_name, '); true string column names end with _idx.');
+		if isempty(row_data{end})
+			row_data{end} = current_column_data;
+		else
+			row_data{end + 1} = current_column_data;
+		end
 	end
-	
+    
+    
 	if (~column_is_GLM && ~column_is_string)  
 		% simple numeric data, append if poosible
 		if isempty(row_data{end})
