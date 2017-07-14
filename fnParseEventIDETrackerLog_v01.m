@@ -136,9 +136,36 @@ else
 	batch_size = 1;
 end
 
+% str2double and str2num expect "." as decimal separator and "," as thousands
+% separator, but eventIDE will take the decimal sparator from windows, so
+% might use "," instead of "." for german language settings; 
+% here we try a heuristic to detect and fix that.
+n_cols = length(strfind(current_line, column_separator));
+n_commata = length(strfind(current_line, ','));
+
+if abs((n_commata - n_cols)/(n_cols)) <= 0.2
+    replace_coma_by_dot = 1;
+    disp(['It seems this log file uses commata as decimal separators, replace by dots...']);
+else
+    replace_coma_by_dot = 0;
+end    
+    
+
 report_every_n_lines = 1000;
 while (~feof(TrackerLog_fd))
 	
+    if (replace_coma_by_dot)
+        comma_idx = strfind(current_line, ',');
+        comma_space_idx = strfind(current_line, ', ');
+        current_line(comma_idx) = '.';
+        % some data fileds use commata as internal separators (clPoint), so
+        % make sure these stay commata
+        if ~isempty(comma_space_idx)
+            current_line(comma_space_idx) = ',';
+        end
+        
+    end
+    
 	current_row_data = extract_row_data_from_Log_line(current_line, data_struct.header, column_separator);
 	
 	switch add_method
@@ -235,6 +262,8 @@ function [ row_data ] = extract_row_data_from_Log_line(log_line, column_name_lis
 row_data = cell([1 1]);
 
 log_line_remain = log_line;
+
+
 log_line_parsed = 0;
 column_idx = 0;
 while ~(log_line_parsed)
