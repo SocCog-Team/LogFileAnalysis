@@ -8,7 +8,7 @@ function [ output_args ] = Test_fnParseEventIDEReportSCP( input_args )
 % ready this for unix systems...
 [sys_status, host_name] = system('hostname');
 switch host_name(1:end-1) % last char of host name result is ascii 10 (LF)
-	case {'hms-beagle2', 'hms-beagle2.local'}
+	case {'hms-beagle2', 'hms-beagle2.local', 'hms-beagle2.lan'}
 		if isdir('/Volumes/social_neuroscience_data/taskcontroller')
 			% remote data repository
 			BaseDir = fullfile('/', 'Volumes', 'social_neuroscience_data', 'taskcontroller');
@@ -54,7 +54,20 @@ end
 
 % 2 NHP subjects with REWARD and STIMULUS record types
 tmp_data = fnParseEventIDEReportSCPv06( fullfile(BaseDir, 'SCP-CTRL-01', 'SCP_DATA', 'SCP-CTRL-01', 'SESSIONLOGS', ...
-	'20170519', '20170519T141401.A_Magnus.B_Curius.SCP_01', '20170519T141401.A_Magnus.B_Curius.SCP_01.log'));
+ 	'20170519', '20170519T141401.A_Magnus.B_Curius.SCP_01', '20170519T141401.A_Magnus.B_Curius.SCP_01.log'));
+
+% % example with arrington tracker and overloaded UserField (string)
+% TrackerLog_FQN = '/space/data_local/moeller/DPZ/taskcontroller/DAG-3/PrimatarData/Cornelius_20170714_1250/TrackerLog--ArringtonTracker--2017-14-07--12-50.txt';
+% tmp_data = fnParseEventIDETrackerLog_v01(TrackerLog_FQN );
+
+% % german language setting file with comma as decimal separator
+% tmp_data = fnParseEventIDETrackerLog_v01( fullfile(BaseDir, 'SCP-CTRL-01', 'SCP_DATA', 'SCP-CTRL-01', 'SESSIONLOGS', ...
+%  	'20170707', '20170707T111529.A_Magnus.B_None.SCP_01', '20170707T111529.A_Magnus.B_None.SCP_01_TrackerLogs', 'TrackerLog--EyeLinkProxyTrackerA--2017-07-07--11-16.txt'));
+
+
+% % german language setting file with comma as decimal separator
+% tmp_data = fnParseEventIDEReportSCPv06( fullfile(BaseDir, 'SCP-CTRL-01', 'SCP_DATA', 'SCP-CTRL-01', 'SESSIONLOGS', ...
+%  	'20170707', '20170707T111529.A_Magnus.B_None.SCP_01', '20170707T111529.A_Magnus.B_None.SCP_01.log'));
 
 
 end
