@@ -21,6 +21,10 @@ switch host_name(1:end-1) % last char of host name result is ascii 10 (LF)
 		BaseDir = fullfile('Z:', 'taskcontroller');
 	case 'SCP-CTRL-01'
 		BaseDir = fullfile('Z:', 'taskcontroller');
+    case 'SCP-VIDEO-01-A'
+		BaseDir = fullfile('Z:', 'taskcontroller');
+	case 'SCP-VIDEO-01-B'
+		BaseDir = fullfile('Z:', 'taskcontroller');
 	otherwise
 		error(['Hostname ', host_name(1:end-1), ' not handeled yet']);
 end
