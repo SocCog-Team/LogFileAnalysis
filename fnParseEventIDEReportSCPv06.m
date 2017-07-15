@@ -14,7 +14,11 @@ function [ report_struct, version_string ] = fnParseEventIDEReportSCPv06( Report
 %	Add ENUM pre/suffix to unique lists and _*_idx columns created from	enum values
 
 global data_struct;	%% ATTENTION there can only be one concurrent user of this global variable, so reserve for the trial table
+global ReplaceDecimalComaWithDecimalPoint;
+global CheckForDecimalSeparator;
 clear global data_struct % clear on return as well?
+ReplaceDecimalComaWithDecimalPoint = 0;
+CheckForDecimalSeparator = 1;
 
 timestamps.(mfilename).start = tic;
 disp(['Starting: ', mfilename]);
@@ -457,6 +461,8 @@ function [ local_data_struct ] = fnParseHeaderTypeDataRecord( local_data_struct,
 % sets
 
 persistent ReferenceHeaderAndTypesByRecordType_struct
+global CheckForDecimalSeparator;
+global ReplaceDecimalComaWithDecimalPoint;
 RemoveEmptyHeaderColumns = 1;
 batch_size = 1;
 DoSanitizeNames = 1;
@@ -599,6 +605,50 @@ end
 % now we have the header and the type list and a line of data that needs
 % processing
 if strcmp(RecordType, 'data')
+    % here we need to find N,N instances and replace them with N.N, on the
+    % first line of each record type try to discern whether we actually
+    % need to do that and save that decision persistently
+    
+    if (CheckForDecimalSeparator)
+        % keep doing this until we have proof of either N.N or N,N
+        % representation, at that point set
+        % ReplaceDecimalComaWithDecimalPoint accordingly, and stop checking
+        % for the separator.
+        % is there a decimal number in the current_line?
+        DecimalPointIdx = regexp(current_line, '[0-9]\.[0-9]'); % \. as . itself will match any character
+        DecimalCommaIdx = regexp(current_line, '[0-9],[0-9]');
+        DecimalPointFound = ~isempty(DecimalPointIdx);
+        DecimalCommaFound = ~isempty(DecimalCommaIdx);
+        
+        if (DecimalPointFound) && ~(DecimalCommaFound)
+            ReplaceDecimalComaWithDecimalPoint = 0;
+            CheckForDecimalSeparator = 0;
+        end
+        if ~(DecimalPointFound) && (DecimalCommaFound)
+            ReplaceDecimalComaWithDecimalPoint = 1;
+            CheckForDecimalSeparator = 0;
+        end
+        if (DecimalPointFound) && (DecimalCommaFound)
+            error('This report file contains both N.N and N,N values, no idea what to do; please implement a solution...');
+        end
+    end
+    
+    if (ReplaceDecimalComaWithDecimalPoint)
+        comma_idx = strfind(current_line, ',');
+        comma_space_idx = strfind(current_line, ', ');
+        current_line(comma_idx) = '.';
+        % some data fields use commata as internal separators (clPoint), so
+        % make sure these stay commata
+        if ~isempty(comma_space_idx)
+            current_line(comma_space_idx) = ',';
+        end
+        % at this point we have replaced clPoint date like: 739,445 (28,94°, 156,739?°)
+        % with: 739.445 (28.94°, 156.739?°)
+        % Where the 739.445 should have stayed 739,445. We need to fix this up later...
+        % side note: the default formatting type for clPoint leaves room for
+        % improvements...
+    end
+    
 	DataCells = fnSplitDelimitedStringToCells(current_line, ItemSeparator, ~DoSanitizeNames);
 	DataCells = DataCells(2:end);% chop off the TRIAL cell
 	if isempty(DataCells{end}) && RemoveEmptyHeaderColumns
@@ -625,6 +675,15 @@ if strcmp(RecordType, 'data')
 			case {'clPoint'}
 				%"1182,445 (6.029°, 23.167?°)"
 				tmp_XY_string = strtok(CurrentData, ' ('); % remove the DVA values
+                if (ReplaceDecimalComaWithDecimalPoint)
+                    % the above will look like: "1182.445 (6.029°, 23.167?°)"
+                    % note the "1182.445" instead of "1182,445", this is
+                    % slightly inconvenient, as str2num will turn N,N into
+                    % two numbers, while N.N is interpreted as a decimal
+                    % number, so undo the coma to dot conversion here
+                    % NOTE: this also would need to be done on array types
+                    tmp_XY_string(strfind(tmp_XY_string, '.')) = ',';
+                end    
 				OutDataCells{end+1} = str2num(tmp_XY_string);
 			case {'clSize'}
 				%"56x56 (6.74°, 6.74°)"
