@@ -158,12 +158,14 @@ while (~feof(TrackerLog_fd))
         comma_idx = strfind(current_line, ',');
         comma_space_idx = strfind(current_line, ', ');
         current_line(comma_idx) = '.';
-        % some data fileds use commata as internal separators (clPoint), so
+        % some data fields use commata as internal separators (clPoint), so
         % make sure these stay commata
         if ~isempty(comma_space_idx)
             current_line(comma_space_idx) = ',';
         end
-        
+        % this still does not fuly handle clPoint type data: 739,445 (28,94°, 156,739?°)
+        % but these should not really exist in a tracker log file..., so
+        % just ignore...
     end
     
 	current_row_data = extract_row_data_from_Log_line(current_line, data_struct.header, column_separator);
