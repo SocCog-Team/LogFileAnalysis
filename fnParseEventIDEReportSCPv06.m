@@ -12,6 +12,7 @@ function [ report_struct, version_string ] = fnParseEventIDEReportSCPv06( Report
 % TODO:
 %	Synthesize Enum_struct for sessions from before the Enums were stored
 %	Add ENUM pre/suffix to unique lists and _*_idx columns created from	enum values
+%   Turn the Session_struct data into data columns (session data changes rarely, but does change...)
 
 global data_struct;	%% ATTENTION there can only be one concurrent user of this global variable, so reserve for the trial table
 global ReplaceDecimalComaWithDecimalDot;
@@ -109,6 +110,7 @@ TmpEnum_struct = struct();	% lets use the existing machinery to parse
 Screen_struct = struct();
 Timing_struct = struct();
 Session_struct = struct();
+SessionByTrial_struct = struct();
 Trial_struct = struct();
 CLIStatistics_struct = struct();
 Setup_struct = struct();
@@ -301,6 +303,13 @@ if ~isempty(fieldnames(Enums_struct))
 end
 
 
+if ~isempty(fieldnames(Session_struct))
+	% Sessions_struct contains data that rarely changes in an experiment
+    % use the timestamp to map to trial numbers from the data table
+	SessionByTrial_struct = fnConvertTimestampedChangeDataToByTrialData(Session_struct, 'Session', data_struct.data(:, data_struct.cn.Timestamp), data_struct.data(:, data_struct.cn.TrialNumber));
+end
+
+
 report_struct = data_struct;
 report_struct.EventIDEinfo = IDinfo_struct;
 report_struct.LoggingInfo = LoggingInfo_struct;
@@ -309,6 +318,7 @@ report_struct.ProximitySensors = ProximitySensors_struct;
 report_struct.Screen = Screen_struct;
 report_struct.Timing = Timing_struct;
 report_struct.Session = Session_struct;
+report_struct.SessionByTrial = SessionByTrial_struct;
 report_struct.CLIStatistics = CLIStatistics_struct;
 report_struct.Setup = Setup_struct;
 report_struct.Enums = Enums_struct;
@@ -1128,5 +1138,71 @@ fclose(RefEnums_fd);
 
 Enums_struct.EnumsDataSynthesized = 1;
 
+return
+end
+
+function [ 	ByTrial_struct ] = fnConvertTimestampedChangeDataToByTrialData(TimestampedChanges_struct, NameString, TimestampList, TrialNumberList)
+% Take timestamped row data and expand it to a table that repeats the same
+% data for all trials with a TrialTimestamp >= Timestamp (for efficiency's
+% sake this will only touch each trial once).
+
+ByTrial_struct = struct();
+ByTrial_struct.unique_lists = TimestampedChanges_struct.unique_lists;
+ByTrial_struct.name = [NameString, 'ByTrial'];
+ByTrial_struct.header = ['TrialTimestamp', 'TrialNumber', TimestampedChanges_struct.header];
+% we know the size and the content of the first two columns already
+ByTrial_struct.data = zeros([length(TimestampList) length(ByTrial_struct.header)]);
+ByTrial_struct.data(:,1) = TimestampList;
+ByTrial_struct.data(:,2) = TrialNumberList;
+
+% here we assume that the Timestamped changes are going to affect trials
+% with starttimes after the change timestamp only
+
+TrialOffset = length(TimestampList);
+for iSessionRecord = size(TimestampedChanges_struct, 1) : -1 : 1;
+    CurrentSessionRecordTS = TimestampedChanges_struct.data(iSessionRecord, TimestampedChanges_struct.cn.Timestamp);
+    % loop over all not yet processed trials
+    for iTrial = TrialOffset : -1 : 1
+        CurrentTrialTS = TimestampList(iTrial);
+        % CurrentTrialTS == 0 these are trials aborted before the animal
+        % had the chance to intialize the trial (e.g. MANUAL_TRIAL_ABORT)
+        % in that case simply keep the current session information as it
+        % will not matter anyway, (Note, all trials should have a timestamp even aborted ones)
+        if ((CurrentTrialTS >= CurrentSessionRecordTS) || (CurrentTrialTS == 0))
+            % found a related trial so fill in the data
+            ByTrial_struct.data(iTrial,3:end) = TimestampedChanges_struct.data(iSessionRecord, :);
+        else
+            TrialOffset = iTrial - 1;
+            break
+        end
+    end 
+end
+
+ByTrial_struct.cn = local_get_column_name_indices(ByTrial_struct.header);
+
+return
+end
+
+function [columnnames_struct, n_fields] = local_get_column_name_indices(name_list, start_val)
+% return a structure with each field for each member if the name_list cell
+% array, giving the position in the name_list, then the columnnames_struct
+% can serve as to address the columns, so the functions assigning values
+% to the columns do not have to care too much about the positions, and it
+% becomes easy to add fields.
+% name_list: cell array of string names for the fields to be added
+% start_val: numerical value to start the field values with (if empty start
+%            with 1 so the results are valid indices into name_list)
+
+if nargin < 2
+	start_val = 1;  % value of the first field
+end
+n_fields = length(name_list);
+for i_col = 1 : length(name_list)
+	cur_name = name_list{i_col};
+	% skip empty names, this allows non consequtive numberings
+	if ~isempty(cur_name)
+		columnnames_struct.(cur_name) = i_col + (start_val - 1);
+	end
+end
 return
 end
