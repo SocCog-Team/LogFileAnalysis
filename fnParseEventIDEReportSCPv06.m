@@ -1159,7 +1159,7 @@ ByTrial_struct.data(:,2) = TrialNumberList;
 % with starttimes after the change timestamp only
 
 TrialOffset = length(TimestampList);
-for iSessionRecord = size(TimestampedChanges_struct, 1) : -1 : 1;
+for iSessionRecord = size(TimestampedChanges_struct.data, 1) : -1 : 1;
     CurrentSessionRecordTS = TimestampedChanges_struct.data(iSessionRecord, TimestampedChanges_struct.cn.Timestamp);
     % loop over all not yet processed trials
     for iTrial = TrialOffset : -1 : 1
