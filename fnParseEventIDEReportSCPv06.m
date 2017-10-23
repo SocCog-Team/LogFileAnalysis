@@ -31,7 +31,7 @@ mfilepath = fileparts(fq_mfilename);
 
 
 save_matfile = 1;
-version_string = '.v008';	% we append this to the filename to figure out whether a report file should be re-parsed... this needs to be updated whenthe parser changes
+version_string = '.v009';	% we append this to the filename to figure out whether a report file should be re-parsed... this needs to be updated whenthe parser changes
 
 suffix_string = '';
 test_timing = 0;
@@ -121,6 +121,7 @@ Totals_struct = struct();
 CurrentEnumFullyParsed = 0;
 FoundUserData = 0;
 Stimulus_struct = struct();
+Video_struct = struct();
 
 %loop over all lines in the ReportLog
 while (~feof(ReportLog_fd))
@@ -206,6 +207,10 @@ while (~feof(ReportLog_fd))
 			CLIStatistics_struct = fnParseHeaderTypeDataRecord(CLIStatistics_struct, current_line, 'CLISTATISTICS', ItemSeparator, ArraySeparator);
 			FoundUserData = 1;
 			continue
+        case {'VIDEO', 'VIDEOHEADER', 'VIDEOTYPES'}
+			Video_struct = fnParseHeaderTypeDataRecord(Video_struct, current_line, 'VIDEO', ItemSeparator, ArraySeparator);
+			FoundUserData = 1;
+			continue    
 		case {'STIMULUS', 'STIMULUSHEADER', 'STIMULUSTYPES'}
 			Stimulus_struct = fnParseHeaderTypeDataRecord(Stimulus_struct, current_line, 'STIMULUS', ItemSeparator, ArraySeparator);
 			FoundUserData = 1;
@@ -327,6 +332,7 @@ report_struct.Enums = Enums_struct;
 report_struct.Reward = Reward_struct;
 report_struct.Totals = Totals_struct;
 report_struct.Stimuli = Stimulus_struct;
+report_struct.Video = Video_struct;
 
 % add the additional information structure
 report_struct.info = info;
