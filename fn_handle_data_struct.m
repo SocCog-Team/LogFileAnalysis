@@ -105,6 +105,8 @@ end
 data_struct.header = header_list;
 data_struct.data = zeros([batch_size length(header_list)]);
 
+data_struct.unique_lists = struct();    % make sure the 'canonical' data_struct filds are always in the same sequence
+
 for i_col = 1 : length(header_list)
 	% create lists for column names ending in _idx
 	cur_col_name = header_list{i_col};
