@@ -59,6 +59,17 @@ switch command_str
 		%end
 		
 		data_struct = local_add_data_columns(varargin{1}, varargin{2}, varargin{3});
+        
+   case 'remove_columns'
+		if (nargin > 4)
+			error('The add_row command requires three arguments: the command name remove_columns a data_struct and the column names to remove');
+		end
+		%if (length(varargin) == 2)
+		%	varargin{end+1} = 1;
+		%end
+		
+		data_struct = local_remove_data_columns(varargin{1}, varargin{2});
+
 		
 	case 'add_row_to_global_struct'
 		if (length(varargin) == 1)
@@ -110,9 +121,47 @@ data_struct.cn = local_get_column_name_indices(header_list);
 return
 end
 
+
+function [ data_struct ] = local_remove_data_columns( data_struct, column_name_list )
+% find all named columns and remove them from the data table, the header
+% and potentially from unique_lists
+CurrentHeader = data_struct.header;
+rmcol_idx = [];
+for i_rmcol_candidate = 1 : length(column_name_list)
+    CurrentColumnName = column_name_list{i_rmcol_candidate};
+    if isfield(data_struct.cn, CurrentColumnName)
+        rmcol_idx = [rmcol_idx, data_struct.cn.(CurrentColumnName)];
+        if (strcmp(column_name_list{i_rmcol_candidate}(end-3:end), '_idx'))
+            if (isfield(data_struct.unique_lists.(column_name_list{i_rmcol_candidate}(1:end-4))))
+                data_struct.unique_lists.(column_name_list{i_rmcol_candidate}(1:end-4)) = [];
+            end
+        end
+    else
+        disp(['Could not find a column named ', CurrentColumnName, ' in the current data_struct; nothing to remove...']);
+    end
+end    
+if ~isempty(rmcol_idx)
+   data_struct.data(:, rmcol_idx) = [];
+   data_struct.header(:, rmcol_idx) = [];
+end    
+
+% finally fix the column name struct cn
+data_struct.cn = local_get_column_name_indices(data_struct.header);
+return
+end
+
 function [ data_struct ] = local_add_data_columns( data_struct, new_column_data, column_name_list )
 % check sizes
 [n_rows, n_new_columns] = size(new_column_data);
+
+% allow column addition to empty tables (by expanding the table to contain as many rows as the new column(s) carry)
+if ((n_rows ~= size(data_struct.data, 1)) && (data_struct.first_empty_row_idx == 1))
+    % the data table is effectively empty, so grow to the correct number of
+    % rows
+    data_struct.data = zeros([n_rows, length(data_struct.header)]);
+    data_struct.first_empty_row_idx = data_struct.first_empty_row_idx + n_rows;
+end
+
 
 % wrong number of rows
 if (n_rows ~= size(data_struct.data, 1))
@@ -137,16 +186,29 @@ if ~isempty(ColumnNamesAlreadyExistingIdx)
 end
 
 % for the time being only handle numeric columns
-if ~isnumeric(new_column_data)
-	error(['We currently only allow addition of numeric columns, bailing out...']);
-	return
+if isnumeric(new_column_data)  
+    % okay we passed all tests, now just concatenate the new column(s)
+    data_struct.data = [data_struct.data, new_column_data];
+    % also add the column names to the header
+    data_struct.header = [data_struct.header, column_name_list];    
+elseif iscell(new_column_data)
+    if (n_new_columns > 1)
+        error('We currently only allow addition of single cell columns, bailing out...');
+    end    
+    if strcmp(column_name_list{1}(end-3:end), '_idx')
+        data_struct.header = [data_struct.header, column_name_list];
+        if (isstr(new_column_data{1,1}))
+            % turn this into an indexed column, also add to data_struct. unique
+            [data_struct.unique_lists.(column_name_list{1}(1:end-4)), ia, indexed_new_column_data] = unique(new_column_data);
+            data_struct.data = [data_struct.data, indexed_new_column_data];
+        end
+    end    
+else
+    error(['We currently only allow addition of numeric columns, bailing out...']);
+    return
 end
 
-% okay we passed all tests, now just concatenate the new columns
-data_struct.data = [data_struct.data, new_column_data];
-% also add the cilumn names to the header
-data_struct.header = [data_struct.header, column_name_list];
-% and fix the column name struct cn
+% finally fix the column name struct cn
 data_struct.cn = local_get_column_name_indices(data_struct.header);
 
 return
