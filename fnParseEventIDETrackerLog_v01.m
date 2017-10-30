@@ -49,6 +49,7 @@ suffix_string = '';
 test_timing = 1;
 add_method = 'add_row_to_global_struct';		% add_row (really slow, just use for gold truth control), add_row_to_global_struct, textscan
 add_method = 'textscan';    % hopefully the future
+OutOfBoundsValue = NaN; 
 pre_allocate_data = 1;
 batch_grow_data_array = 1;	% should be default
 
@@ -61,6 +62,10 @@ info.session_date_string = [];
 info.session_date_vec = [];
 info.experiment_eve = [];
 info.tracker_name = [];
+info.parsing_date_vec = datevec(datetime('now'));
+[sys_status, host_name] = system('hostname');
+info.hostname = strtrim(host_name);
+
 
 data_struct.header = {};
 data_struct.data = [];
@@ -111,6 +116,8 @@ if (TrackerLog_fd == -1)
     error(['Could not open ', num2str(TrackerLog_fd), ' none selected?']);
 end
 info.logfile_FQN = TrackerLog_FQN;
+[sys_status, host_name] = system('hostname');
+info.hostname = strtrim(host_name);
 
 % parse the informative header part
 info_header_parsed = 0;
@@ -151,11 +158,12 @@ if ~isempty(strfind(current_line, 'EventIDE TimeStamp'))
     
     % create the data structure
     data_struct = fn_handle_data_struct('create', header);
+    data_struct.out_of_bounds_marker = OutOfBoundsValue;
+    
+    data_start_offset = ftell(TrackerLog_fd);
     current_line = fgetl(TrackerLog_fd); % we need this for the next section where we want to start with a loaded log line
     current_line_number = current_line_number + 1;
 end
-
-data_start_offset = ftell(TrackerLog_fd) - length(current_line);
 
 
 % str2double and str2num expect "." as decimal separator and "," as thousands
@@ -172,14 +180,20 @@ else
     replace_coma_by_dot = 0;
 end
 
+info.replace_coma_by_dot = replace_coma_by_dot;
 
-% try to make all intermediary fix ups into a tenporary file without a
+
+% try to make all intermediary fix ups into a temporary file without a
 % header
 if (fixup_userfield_columns == 2) && (exist(TmpTrackerLog_FQN, 'file') ~= 2)
+    disp('Checking each line for the correct number of columns; in case of missing columns add empty columns (might take a while...)');
     FixedTrackerLog_fd = fopen(TmpTrackerLog_FQN, 'w');
     
+    % just skip over the header and start with the first data line
+    fseek(TrackerLog_fd, data_start_offset, 'bof');
+    
     while (~feof(TrackerLog_fd))
-        
+        current_line = fgetl(TrackerLog_fd);
         if (fixup_userfield_columns == 2)
             separator_idx = strfind(current_line, column_separator);
             if length(separator_idx) < length(tmp_fast.header)
@@ -204,21 +218,25 @@ if (fixup_userfield_columns == 2) && (exist(TmpTrackerLog_FQN, 'file') ~= 2)
             replace_coma_by_dot = 2;
         end
         fprintf(FixedTrackerLog_fd, '%s\r\n', current_line);
-        current_line = fgetl(TrackerLog_fd);
     end
     fclose(FixedTrackerLog_fd);
     fclose(TrackerLog_fd);
-    TrackerLog_fd = fopen(TmpTrackerLog_FQN, 'r');    
+    TrackerLog_fd = fopen(TmpTrackerLog_FQN, 'r');
     tmpToc = toc(timestamps.(mfilename).start);
     disp(['Trackerlog fix-ups took: ', num2str(tmpToc), ' seconds (', num2str(floor(tmpToc / 60), '%3.0f'),' minutes, ', num2str(tmpToc - (60 * floor(tmpToc / 60))),' seconds)']);
     
+    if ismember(add_method, {'add_row_to_global_struct', 'add_row'})
+        current_line = fgetl(TrackerLog_fd); % we need this for the next section where we want to start with a loaded log line
+  
+    end
 end
 
 switch add_method
     case {'add_row_to_global_struct', 'add_row'}
+        
         % now read and parse each data line in sequence, we already have the first
         % line loaded
-        tn_lines = 1;
+        n_lines = 1;
         
         % estimate the number of lines in the TrackerLog
         bytes_per_line = length(current_line);
@@ -292,7 +310,7 @@ switch add_method
             TrackerLogCell = textscan(TrackerLog_fd, tmp_fast.column_type_string, 'Delimiter', column_separator);
             tmpToc = toc(timestamps.(mfilename).start);
             disp(['Trackerlog textscan took: ', num2str(tmpToc), ' seconds (', num2str(floor(tmpToc / 60), '%3.0f'),' minutes, ', num2str(tmpToc - (60 * floor(tmpToc / 60))),' seconds)']);
-            data_struct = fnConvertTextscanOutputToDataStruct(TrackerLogCell, tmp_fast.header, tmp_fast.column_type_list, expand_GLM_coefficients, replace_coma_by_dot);
+            data_struct = fnConvertTextscanOutputToDataStruct(TrackerLogCell, tmp_fast.header, tmp_fast.column_type_list, expand_GLM_coefficients, replace_coma_by_dot, OutOfBoundsValue);
             % now turn this into a proper data_struct
         end
 end
@@ -541,9 +559,14 @@ end
 return
 end
 
-function [ out_data_struct, TextscanOutputCellArray, cell_header, cell_type_list] = fnConvertTextscanOutputToDataStruct( TextscanOutputCellArray, cell_header, cell_type_list, expand_GLM_coefficients, replace_coma_by_dot )
+function [ out_data_struct, TextscanOutputCellArray, cell_header, cell_type_list] = fnConvertTextscanOutputToDataStruct( TextscanOutputCellArray, cell_header, cell_type_list, expand_GLM_coefficients, replace_coma_by_dot, OutOfBoundsValue )
 % convert the TrackerLogCell into a data_struct, by saddiing column by
 % column
+
+if ~exist('OutOfBoundsValue', 'var')
+    OutOfBoundsValue = NaN; % default to NaN, even though it can be quite slow...
+end
+
 
 out_data_struct = struct();
 n_columns = size(TextscanOutputCellArray, 2);
@@ -589,10 +612,15 @@ n_columns = size(TextscanOutputCellArray, 2);
 
 
 out_data_struct = fn_handle_data_struct('create', {'REMOVEME'});
+out_data_struct.out_of_bounds_marker = OutOfBoundsValue;
 
 % now add the columns one by one
 for i_column = 1 : n_columns
     CurrentColumnData = TextscanOutputCellArray{i_column};
+    if ~isnan(OutOfBoundsValue)
+        NaN_idx = isnan(CurrentColumnData);
+        CurrentColumnData(NaN_idx) = OutOfBoundsValue;
+    end
     CurrentColumnName = cell_header{i_column};
     CurrentColumnType = cell_type_list{i_column};
     out_data_struct = fn_handle_data_struct('add_columns', out_data_struct, CurrentColumnData, {CurrentColumnName});
