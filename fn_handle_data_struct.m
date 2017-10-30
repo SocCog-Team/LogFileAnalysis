@@ -118,6 +118,7 @@ for i_col = 1 : length(header_list)
 end
 % were does the data end
 data_struct.first_empty_row_idx = 1;
+data_struct.out_of_bounds_marker = NaN; % which value to use to mark missing values (use zeros for indexed _idx columns)
 % a structure that allows to use names for the column indices
 data_struct.cn = local_get_column_name_indices(header_list);
 return
@@ -201,10 +202,18 @@ elseif iscell(new_column_data)
         data_struct.header = [data_struct.header, column_name_list];
         if (isstr(new_column_data{1,1}))
             % turn this into an indexed column, also add to data_struct. unique
-            [data_struct.unique_lists.(column_name_list{1}(1:end-4)), ia, indexed_new_column_data] = unique(new_column_data);
+            [UniqueValueList, ~, indexed_new_column_data] = unique(new_column_data);
+            data_struct.unique_lists.(column_name_list{1}(1:end-4)) = UniqueValueList';
+            
+            % empty names should result in a zero index
+            EmptyValueStringIdx = find(strcmp(UniqueValueList, ''));
+            if ~isempty(EmptyValueStringIdx)
+                EmptyRowIdx = find(indexed_new_column_data == EmptyValueStringIdx);
+                indexed_new_column_data(EmptyRowIdx) = 0;
+            end
             data_struct.data = [data_struct.data, indexed_new_column_data];
         end
-    end    
+    end
 else
     error(['We currently only allow addition of numeric columns, bailing out...']);
     return
