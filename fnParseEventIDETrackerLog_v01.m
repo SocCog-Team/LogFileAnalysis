@@ -14,16 +14,19 @@ function [ data_struct ] = fnParseEventIDETrackerLog_v01( TrackerLog_FQN, column
 % cell arrays, maybe merge these using the NIY add_column in
 % fn_handle_data_struct.m
 %
-
-
-
-%TODO: implement and benchmark a textscan based method with after parsing
-%	transfer into a data_struct (will require to implement add_column)
+%TODO: 
+%   Test and remove the old add_row and add_row_to_global_struct code, as
+%   textscan is much faster...
+%       -> make code more readable
 %
-%   Multi-column UserFileds in EventIDE will result in a sinle ;; instance
+% DONE: 
+%   implement and benchmark a textscan based method with after parsing
+%	transfer into a data_struct (will require to implement add_column)
+%   Multi-column UserFileds in EventIDE will result in a single ;; instance
 %   before the user field is written to (the tracker starts before time 0)
 %       Fix this by adding the missing separators to get to the correct
 %       coumn number
+
 
 global data_struct;
 
