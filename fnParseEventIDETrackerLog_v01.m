@@ -105,7 +105,7 @@ TrackerLog_size_bytes  = tmp_dir_TrackerLog_FQN.bytes;
 
 
 % default to semi-colon to separate the LogHeader and data lines
-if (~exist('column_separator', 'var'))
+if (~exist('column_separator', 'var')) || isempty(column_separator)
     column_separator = ';';
 end
 
@@ -136,10 +136,10 @@ while (~info_header_parsed)
             info.session_date_vec = DateVector;
             found_header_line = 1;
         case 'Experiment'
-            info.experiment_eve = [remain(2:end), '.eve'];
+            info.experiment_eve = [strtrim(remain(2:end)), '.eve'];
             found_header_line = 1;
         case 'Tracker'
-            info.tracker_name = remain(2:end);
+            info.tracker_name = strtrim(remain(2:end));
             found_header_line = 1;
     end
     
@@ -195,6 +195,9 @@ if (fixup_userfield_columns == 2) && (exist(TmpTrackerLog_FQN, 'file') ~= 2)
     % just skip over the header and start with the first data line
     fseek(TrackerLog_fd, data_start_offset, 'bof');
     
+    %TODO copy the header lines verbatim but note the number of lines and
+    %use those for skipping in textscan
+    
     while (~feof(TrackerLog_fd))
         current_line = fgetl(TrackerLog_fd);
         if (fixup_userfield_columns == 2)
@@ -215,7 +218,7 @@ if (fixup_userfield_columns == 2) && (exist(TmpTrackerLog_FQN, 'file') ~= 2)
             if ~isempty(comma_space_idx)
                 current_line(comma_space_idx) = ',';
             end
-            % this still does not fuly handle clPoint type data: 739,445 (28,94°, 156,739?°)
+            % this still does not fully handle clPoint type data: 739,445 (28,94°, 156,739?°)
             % but these should not really exist in a tracker log file..., so
             % just ignore...
             replace_coma_by_dot = 2;
@@ -418,7 +421,7 @@ while (~LogHeader_parsed)
             % naively assume all extra columns are multiplexed into the
             % user field column
             for i_userfield_columns = 1 : (number_of_data_columns - number_orig_header_columns) + 1
-                header{end+1} = ['User_Field_', num2str(i_userfield_columns, '%02d'), 'idx'];
+                header{end+1} = ['User_Field_', num2str(i_userfield_columns, '%02d'), '_idx'];
                 column_type_list{end + 1} = 'string';
                 column_type_string = [column_type_string, '%s'];
             end
@@ -588,7 +591,7 @@ if (expand_GLM_coefficients)
         if (replace_coma_by_dot)
             TmpGLMCoefficientsUnparsedStringCharArray = strrep(TmpGLMCoefficientsUnparsedStringCharArray, ',', '.');
         end
-        TmpGLMCoefficientsCellArray = textscan(TmpGLMCoefficientsUnparsedStringCharArray','GainX=%f OffsetX=%f GainY=%f OffsetY=%f');
+        TmpGLMCoefficientsCellArray = textscan(TmpGLMCoefficientsUnparsedStringCharArray','GainX=%f OffsetX=%f GainY=%f OffsetY=%f', size(TextscanOutputCellArray{GLM_CoefficientsColumnIdx}, 1));
         
         % now merge the expanded columns into TextscanOutputCellArray,
         % cell_header and cell_type_list
