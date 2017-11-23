@@ -2,8 +2,9 @@ function [ data_struct ] = fnParseEventIDETrackerLog_v01( TrackerLog_FQN, column
 %PARSE_PQLABTRACKER Summary of this function goes here
 % Parse EventIDE tracker element style report files:
 %   TrackerLog_FQN: the fully qualified name of the tracker log
-%   column_separator: which charater to use to split lines into columns
-%   number_of_columns: force a specific number of columns, ignore of empty
+%   column_separator: which charater to use to split lines into columns,
+%       default to : if missing or empty
+%   force_number_of_columns: force a specific number of columns, ignore if missing or empty
 
 %   Try to read in eventIDE TrackerLog files for PQLabs touch panel
 %   elements. This will try to also intrapolate. the timestamps per sample
@@ -18,6 +19,9 @@ function [ data_struct ] = fnParseEventIDETrackerLog_v01( TrackerLog_FQN, column
 %   Test and remove the old add_row and add_row_to_global_struct code, as
 %   textscan is much faster...
 %       -> make code more readable
+%   After parsing try to convert User_Field_NN_idx columns into numeric
+%   columns if they appear numeric, also delete completely empty columns
+%   with User_Field_NN_idx headers
 %
 % DONE: 
 %   implement and benchmark a textscan based method with after parsing
@@ -46,8 +50,8 @@ version_string = '.v002';	% we append this to the filename to figure out whether
 % missing ones
 
 fixup_userfield_columns = 2;
-delete_fixed_trackerlog = 0;
-expand_GLM_coefficients = 1;
+delete_fixed_trackerlog = 0;    %TODO instead clone a header into the fixed data file, zip the original under a new name and save the fixed as the "normal" tracker log file
+expand_GLM_coefficients = 1;   
 suffix_string = '';
 test_timing = 1;
 add_method = 'add_row_to_global_struct';		% add_row (really slow, just use for gold truth control), add_row_to_global_struct, textscan
@@ -167,7 +171,7 @@ if ~isempty(strfind(current_line, 'EventIDE TimeStamp'))
     current_line = fgetl(TrackerLog_fd); % we need this for the next section where we want to start with a loaded log line
     current_line_number = current_line_number + 1;
 end
-
+data_start_line = current_line_number;
 
 % str2double and str2num expect "." as decimal separator and "," as thousands
 % separator, but eventIDE will take the decimal sparator from windows, so
@@ -196,7 +200,8 @@ if (fixup_userfield_columns == 2) && (exist(TmpTrackerLog_FQN, 'file') ~= 2)
     fseek(TrackerLog_fd, data_start_offset, 'bof');
     
     %TODO copy the header lines verbatim but note the number of lines and
-    %use those for skipping in textscan
+    %use those for skipping in textscan, or rather write out fast.header
+    %which will have column names for the additional forced columns
     
     while (~feof(TrackerLog_fd))
         current_line = fgetl(TrackerLog_fd);
