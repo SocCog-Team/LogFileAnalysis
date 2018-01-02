@@ -15,6 +15,10 @@ function [ report_struct, version_string ] = fnParseEventIDEReportSCPv06( Report
 %	Synthesize Enum_struct for sessions from before the Enums were stored
 %	Add ENUM pre/suffix to unique lists and _*_idx columns created from	enum values
 %   Turn the Session_struct data into data columns (session data changes rarely, but does change...)
+%   allow to read in an additional data file per log file to localize fix
+%       ups and add not automatically added per trial/per session
+%       variables...
+
 
 global data_struct;	%% ATTENTION there can only be one concurrent user of this global variable, so reserve for the trial table
 global ReplaceDecimalComaWithDecimalDot;
@@ -31,7 +35,7 @@ mfilepath = fileparts(fq_mfilename);
 
 
 save_matfile = 1;
-version_string = '.v009';	% we append this to the filename to figure out whether a report file should be re-parsed... this needs to be updated whenthe parser changes
+version_string = '.v010';	% we append this to the filename to figure out whether a report file should be re-parsed... this needs to be updated whenthe parser changes
 
 suffix_string = '';
 test_timing = 0;
@@ -274,6 +278,13 @@ end
 fclose(ReportLog_fd);
 %data_struct = fn_handle_data_struct('truncate_to_actual_size', data_struct);
 
+% life is much easier if the row index equals the trial number, but there
+% are conditions when trial records might not be written, in that case add
+% dummy rows to keep both indices in sync
+
+if ~isempty(data_struct.data) && (size(data_struct.data, 1) ~= data_struct.data(end, data_struct.cn.TrialNumber))
+    data_struct = fnAddMissionTrialRows_2_data_struct(data_struct);
+end
 
 % add the sessionID (create from time and setupID
 TmpDateVector = IDinfo_struct.DateVector;
@@ -1037,7 +1048,8 @@ data = zeros([NumTrials, length(header)]);
 
 for iTrial = 1 : NumTrials
 	CurrentTrialNum = iTrial;
-	
+    
+    
 	CurrentTrialRewardLogIdx = find(Reward_struct.data(:, Reward_struct.cn.TrialNumber) == CurrentTrialNum);
 	
 	% there can be multiple reward log lines per trial so accumulate over
@@ -1220,5 +1232,60 @@ for i_col = 1 : length(name_list)
 		columnnames_struct.(cur_name) = i_col + (start_val - 1);
 	end
 end
+return
+end
+
+function [ out_data_struct ] = fnAddMissionTrialRows_2_data_struct( in_data_struct )
+% to keep the row index in sync with the actual trial number add dummy
+% trial records for missing trial numbers, with OUTCOME NO_OUTCOME and the
+% names from the last 
+
+out_data_struct = in_data_struct;
+
+
+all_row_idx = (1:1:size(in_data_struct.data, 1))';
+TrialNumberList = in_data_struct.data(:, in_data_struct.cn.TrialNumber);
+
+% make the output data struct large enough to hold all trials, initialize to
+% zero
+out_data_struct.data = zeros(TrialNumberList(end), size(in_data_struct.data, 2));
+
+
+
+if ~isequal(all_row_idx, TrialNumberList) && (TrialNumberList(1) ~= 0)
+    for i_row = 1 : length(all_row_idx)
+        CurrentTrialNumber = TrialNumberList(i_row);
+        % okay copy all input lines to the ouput data array, but using
+        % TrialNumber as row idx
+        out_data_struct.data(CurrentTrialNumber, :) = in_data_struct.data(i_row, :);
+    end
+    % now find the all zero lines that mark "missing" trials
+    missing_trial_row_idx = find(out_data_struct.data(:, out_data_struct.cn.TrialNumber) == 0);
+    for i_missing_row_idx = 1 : length(missing_trial_row_idx)
+        CurrentOutRowIdx = missing_trial_row_idx(i_missing_row_idx);
+        disp(['The eventIDE report file was missing a TRIAL data record for trial#: ', num2str(CurrentOutRowIdx)]);
+        out_data_struct.data(CurrentOutRowIdx, out_data_struct.cn.TrialNumber) = CurrentOutRowIdx;
+        % copy some data from the previous trial row, everything else is
+        % left at zero
+        if (CurrentOutRowIdx-1 > 0)
+            % not the first line, copy from previous line
+            CopyDataFromRowIdx = CurrentOutRowIdx - 1;
+        else
+            % the first line? get the data from the next valid trial
+            ExistingTrialRecordsGTCurrent = find(out_data_struct.data(:, out_data_struct.cn.TrialNumber) > CurrentOutRowIdx);            
+            CopyDataFromRowIdx = ExistingTrialRecordsGTCurrent(1);
+        end
+            
+        
+        out_data_struct.data(CurrentOutRowIdx, out_data_struct.cn.A_Name_idx) = out_data_struct.data(CopyDataFromRowIdx, out_data_struct.cn.A_Name_idx);
+        out_data_struct.data(CurrentOutRowIdx, out_data_struct.cn.B_Name_idx) = out_data_struct.data(CopyDataFromRowIdx, out_data_struct.cn.B_Name_idx);
+    end
+    
+    % adjust the first_empty_row_idx
+    out_data_struct.first_empty_row_idx = size(out_data_struct.data, 1) + 1;
+else
+    out_data_struct = in_data_struct;
+end
+
 return
 end
