@@ -13,11 +13,16 @@ function [ output_args ] = fnRenameSCPDataFiles_201801( input_args )
 %   Potentially also put very old sessions into the new format
 
 % TODO:
-%   handle gzipped versions of the files as well
-%   canonicalize the output path to 
 %   save a copy of the output to file (use diary)
+%   process and match the tracker log files
+%
+% DONE:
 %   add suffix to out put session directory
 %   create sub directory for each year (to avoid too many files/subdirectories)
+%   handle gzipped versions of the files as well
+%   canonicalize the output path to
+
+
 
 timestamps.(mfilename).start = tic;
 disp(['Starting: ', mfilename]);
@@ -36,7 +41,8 @@ method_string = 'copy'; % either move, rename or copy
 process_triallog = 1;    % this is required
 session_suffix_string = '.sessiondir';
 process_digitalinputlog = 1;
-
+process_trackerlogs = 1;
+process_leftovers = 1;
 
 % where to start the search for the data files to process?
 sessionlog_in_basedir_list = {fullfile(SCP_dirs.SCP_DATA_BaseDir, 'SCP-CTRL-01', 'SCP_DATA', 'SCP-CTRL-01', 'SESSIONLOGS'), ...
@@ -73,7 +79,7 @@ for i_sessionlog_basedir = 1 : length(sessionlog_in_basedir_list)
         [input_FQN_list, output_FQN_list, session_id_list] = fnProcessLogFilesFromList(current_matching_file_list, ...
             current_sessionlog_in_basedir, current_sessionlog_out_basedir, session_suffix_string,...
             [current_setup_id, '.log'], [current_setup_id, '.triallog.txt'], method_string);
-
+        
         
         % also process newer already properly named log files (relevant for moving and to collect the sessions for processing of other log file types)
         current_wildcardstring = ['*', current_setup_id, '.triallog.txt'];
@@ -84,7 +90,7 @@ for i_sessionlog_basedir = 1 : length(sessionlog_in_basedir_list)
         [tmp_input_FQN_list, tmp_output_FQN_list, tmp_session_id_list] = fnProcessLogFilesFromList(current_matching_file_list, ...
             current_sessionlog_in_basedir, current_sessionlog_out_basedir, session_suffix_string,...
             [current_setup_id, '.triallog.txt'], [current_setup_id, '.triallog.txt'], method_string);
-
+        
         input_FQN_list = [input_FQN_list, tmp_input_FQN_list];
         output_FQN_list = [output_FQN_list, tmp_output_FQN_list];
         session_id_list = [session_id_list, tmp_session_id_list];
@@ -96,7 +102,7 @@ for i_sessionlog_basedir = 1 : length(sessionlog_in_basedir_list)
     [unique_session_id_list, unique_session_idx, unique_to_instance_list_idx] = unique(session_id_list);
     % collect all the processed files per unique session_id
     if ~exist('', 'var')
-       processed_files_by_session_id_list = cell(size(unique_session_id_list)); 
+        processed_files_by_session_id_list = cell(size(unique_session_id_list));
     end
     
     for i_unique_session_id = 1 : length(unique_session_id_list)
@@ -131,17 +137,28 @@ for i_sessionlog_basedir = 1 : length(sessionlog_in_basedir_list)
         processed_files_by_session_id_list = fnProcessLogtypeBySession('digitalinchangelog', digitalinputlog_options, ...
             session_id_list, input_FQN_list, output_FQN_list, processed_files_by_session_id_list, method_string);
     end
-
+    
     
     % the tracker log files, these require renaming of the files and
     % potentially first a time based matching to the proper triallog
+    if (process_trackerlogs)
+        % how to detect a trackerlog, from the file name
+        trackerlogs_options.input_name_match_regexp_list =  {'^TrackerLog--', '.trackerlog.txt$'};
+        % the current suffixes
+        trackerlogs_options.input_name_suffix_list =  {'[0-9].txt$', '[0-9].txt.gz$'};
+        % the new suffixes
+        trackerlogs_options.output_name_suffix_list = {'.trackerlog.txt', '.trackerlog.txt.gz'};
+        
+        processed_files_by_session_id_list = fnProcessLogtypeBySession('trackerlogs', trackerlogs_options, ...
+            session_id_list, input_FQN_list, output_FQN_list, processed_files_by_session_id_list, method_string);
+    end
     
-    
-    
-    % all other files that might belong to the session 
+    % all other files that might belong to the session
     % basically all files not in the processed_files_by_session_id_list for
     % each session...
-    
+    if (process_leftovers)
+        
+    end
 end
 
 timestamps.(mfilename).end = toc(timestamps.(mfilename).start);
@@ -162,8 +179,8 @@ session_id_list = cell([size(input_FQN_list)]);
 for i_logfile = 1 : length(current_matching_file_list)
     current_log_in_FQN = current_matching_file_list{i_logfile};
     current_log_out_FQN = [];
-
-   [current_log_pathstr, current_log_name, current_log_FQN_ext] = fileparts(current_log_in_FQN);
+    
+    [current_log_pathstr, current_log_name, current_log_FQN_ext] = fileparts(current_log_in_FQN);
     % special case gzipped triallog files
     current_file_gz_ext_string = '';
     if strcmp(current_log_FQN_ext, '.gz')
@@ -197,7 +214,7 @@ for i_logfile = 1 : length(current_matching_file_list)
     % current_sessionlog_out_basedir string
     if ~strcmp(current_sessionlog_in_basedir, current_sessionlog_out_basedir)
         current_log_pathstr = regexprep(current_log_pathstr, current_sessionlog_in_basedir, current_sessionlog_out_basedir);
-    end    
+    end
     
     
     % separate the date YYYYMMDD into YYYY/YYMMDD
@@ -205,26 +222,25 @@ for i_logfile = 1 : length(current_matching_file_list)
     session_date_string = session_id_string(1:8);
     % replace any /YYYYMMMDD/ string with /YYYY/YYMMDD, add a final / to
     % avoid failure if a path ends with ".../YYYYMMDD"
-    current_log_pathstr = regexprep([current_log_pathstr, filesep], [filesep, session_date_string, filesep, '$'], [filesep, session_id_string(1:4), filesep, session_id_string(3:)]); 
+    current_log_pathstr = regexprep([current_log_pathstr, filesep], [filesep, session_date_string, filesep], [filesep, session_id_string(1:4), filesep, session_id_string(3:8), filesep]);
+    if strcmp(current_log_pathstr(end), filesep)
+        current_log_pathstr(end) = [];
+    end
     
     
     [tmp_pathstr, tmp_last_level_dir, tmp_last_level_dir_ext] = fileparts(current_log_pathstr);
     % we want ${session_id_string}${session_dir_suffix}
-    if ~strcmp([tmp_last_level_dir, tmp_last_level_dir_ext], [session_id_string, session_dir_suffix])
+    if ~strcmp([tmp_last_level_dir, tmp_last_level_dir_ext], [session_id_string, session_suffix_string])
         % make sure that the session id is added to the path
         if ~strcmp(session_id_string, [tmp_last_level_dir, tmp_last_level_dir_ext])
-            current_log_pathstr = fullfile(current_log_pathstr, [session_id_string, session_dir_suffix]);
-        end    
+            current_log_pathstr = fullfile(current_log_pathstr, [session_id_string, session_suffix_string]);
+        end
     end
     
-    
-    %handle the session_dir_suffix
-    
-        
     % modify the name and extension
     if ~strcmp(in_name_expression, out_name_expression)
-        current_log_name_ext = regexprep(current_log_name_ext, in_name_expression, out_name_expression);       
-    end  
+        current_log_name_ext = regexprep(current_log_name_ext, in_name_expression, out_name_expression);
+    end
     
     % construct the current_triallog_out_FQN
     current_log_out_FQN = fullfile(current_log_pathstr, [current_log_name_ext, current_file_gz_ext_string]);
@@ -239,22 +255,6 @@ for i_logfile = 1 : length(current_matching_file_list)
     output_FQN_list{i_logfile} = current_log_out_FQN;
     
     fnTransformInputFileToOutputFileByMethod(current_log_in_FQN, current_log_out_FQN, method_string)
-%     % depending on the method either move/rename or copy
-%     switch lower(method_string)
-%         case {'rename', 'move'}
-%             disp(['Moving: ', current_log_in_FQN]);
-%             disp(['    to: ', current_log_out_FQN]);
-%             movefile(current_log_in_FQN, current_log_out_FQN);
-%         case 'copy'
-%             disp(['Copying: ', current_log_in_FQN]);
-%             disp(['     to: ', current_log_out_FQN]);
-%             copyfile(current_log_in_FQN, current_log_out_FQN);
-%         case {'none', 'ignore'}
-%             disp(['Ignoring: ', current_log_in_FQN]);
-%             disp(['      to: ', current_log_out_FQN]);
-%         otherwise
-%             error(['Processing method: ', method_string, ' not handled yet...']);
-%     end 
 end
 
 if (return_unique_sessions_only)
@@ -289,8 +289,6 @@ switch lower(method_string)
     otherwise
         error(['Processing method: ', method_string, ' not handled yet...']);
 end
-
-
 return
 end
 
@@ -305,7 +303,10 @@ for i_session_id = 1 : length(session_id_list)
     switch logtype_string
         case 'digitalinchangelog'
             current_processed_in_file_list = fnProcessDIChangelog(current_session_id, current_in_path, current_out_path, option_struct.input_name_match_regexp_list, option_struct.output_name_match_regexp_list, method_string);
-        
+            
+        case 'trackerlogs'
+            current_processed_in_file_list = fnProcessTrackerLogs(current_session_id, current_in_path, current_out_path, option_struct, method_string);
+            
         case {'ignore this', 'ignore_this_too'}
             % just an example to show how to add log types to completely
             % ignore
@@ -321,7 +322,7 @@ for i_session_id = 1 : length(session_id_list)
             processed_files_by_session_id_list{i_session_id} = current_processed_in_file_list;
         end
         
-    end   
+    end
 end
 
 return
@@ -349,7 +350,7 @@ for i_file = 1 : length(all_files_in_input_dir)
         if ~isempty(current_input_name_match_regexp_idx) && ~isempty(regexp(current_file_struct.name, ['^', current_session_id]))
             disp(['Found match for: ', current_file_struct.name, ' -> ', current_input_name_match_regexp]);
             %[~, current_file_name, current_file_ext] = fileparts(current_file_struct.name);
-            current_output_name_ext = regexprep(current_file_struct.name, current_input_name_match_regexp, current_output_name_match_regexp); 
+            current_output_name_ext = regexprep(current_file_struct.name, current_input_name_match_regexp, current_output_name_match_regexp);
             input_file_FQN = fullfile(current_in_path, current_file_struct.name);
             output_file_FQN = fullfile(current_out_path, current_output_name_ext);
             fnTransformInputFileToOutputFileByMethod(input_file_FQN, output_file_FQN, method_string);
@@ -357,6 +358,27 @@ for i_file = 1 : length(all_files_in_input_dir)
         end
     end
 end
+
+return
+end
+
+function [ current_processed_in_file_list ] = fnProcessTrackerLogs( current_session_id, current_in_path, current_out_path, option_struct, method_string )
+% process the tracker log files
+% create the canonical fullfile(current_out_path, trackerlogfiles) sub
+% directory and place all trackerlogs that belong to that session there
+
+% search for all trackerlog files in the known locations in order of ease:
+%   current_in_path/trackerlogfiles/${SESSION_ID_STRING}.trackerlog.[txt|txt.gz]
+
+%   current_in_path/${SESSION_ID_STRING}_TrackerLogs/TrackerLog--*.[txt|txt.gz]
+
+%   current_in_path/TrackerLogs/TrackerLog--*.[txt|txt.gz]
+
+%   current_in_path/TrackerLog--*.[txt|txt.gz]
+
+
+
+
 
 return
 end
