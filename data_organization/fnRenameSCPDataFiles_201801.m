@@ -41,8 +41,8 @@ method_string = 'copy'; % either move, rename or copy
 process_triallog = 1;    % this is required
 session_suffix_string = '.sessiondir';
 process_digitalinputlog = 1;
-process_trackerlogs = 1;
-process_leftovers = 1;
+process_trackerlogs = 0;
+process_leftovers = 0;
 
 % where to start the search for the data files to process?
 sessionlog_in_basedir_list = {fullfile(SCP_dirs.SCP_DATA_BaseDir, 'SCP-CTRL-01', 'SCP_DATA', 'SCP-CTRL-01', 'SESSIONLOGS'), ...
@@ -148,7 +148,7 @@ for i_sessionlog_basedir = 1 : length(sessionlog_in_basedir_list)
         trackerlogs_options.input_name_suffix_list =  {'[0-9].txt$', '[0-9].txt.gz$'};
         % the new suffixes
         trackerlogs_options.output_name_suffix_list = {'.trackerlog.txt', '.trackerlog.txt.gz'};
-        
+        trackerlogs_options.output_subdirname = 'trackerlogfiles';
         processed_files_by_session_id_list = fnProcessLogtypeBySession('trackerlogs', trackerlogs_options, ...
             session_id_list, input_FQN_list, output_FQN_list, processed_files_by_session_id_list, method_string);
     end
@@ -232,9 +232,12 @@ for i_logfile = 1 : length(current_matching_file_list)
     % we want ${session_id_string}${session_dir_suffix}
     if ~strcmp([tmp_last_level_dir, tmp_last_level_dir_ext], [session_id_string, session_suffix_string])
         % make sure that the session id is added to the path
-        if ~strcmp(session_id_string, [tmp_last_level_dir, tmp_last_level_dir_ext])
+        
+        if (strcmp(session_id_string, [tmp_last_level_dir, tmp_last_level_dir_ext]))
+            current_log_pathstr = fullfile(tmp_pathstr, [session_id_string, session_suffix_string]);
+        else
             current_log_pathstr = fullfile(current_log_pathstr, [session_id_string, session_suffix_string]);
-        end
+        end       
     end
     
     % modify the name and extension
@@ -305,7 +308,9 @@ for i_session_id = 1 : length(session_id_list)
             current_processed_in_file_list = fnProcessDIChangelog(current_session_id, current_in_path, current_out_path, option_struct.input_name_match_regexp_list, option_struct.output_name_match_regexp_list, method_string);
             
         case 'trackerlogs'
-            current_processed_in_file_list = fnProcessTrackerLogs(current_session_id, current_in_path, current_out_path, option_struct, method_string);
+            current_processed_in_file_list = fnProcessTrackerLogs(current_session_id, current_in_path, current_out_path, ... 
+                option_struct.input_name_match_regexp_list, option_struct.input_name_suffix_list, ...
+                option_struct.output_subdirname, method_string);
             
         case {'ignore this', 'ignore_this_too'}
             % just an example to show how to add log types to completely
@@ -328,9 +333,9 @@ end
 return
 end
 
-function [ current_processed_file_list ] = fnProcessDIChangelog(current_session_id, current_in_path, current_out_path, input_name_match_regexp_list, output_name_match_regexp_list, method_string)
+function [ current_processed_in_file_list ] = fnProcessDIChangelog(current_session_id, current_in_path, current_out_path, input_name_match_regexp_list, output_name_match_regexp_list, method_string)
 
-current_processed_file_list = {};
+current_processed_in_file_list = {};
 
 % find all proximity sensor/ digitalin change log files
 all_files_in_input_dir = dir(current_in_path);
@@ -354,7 +359,7 @@ for i_file = 1 : length(all_files_in_input_dir)
             input_file_FQN = fullfile(current_in_path, current_file_struct.name);
             output_file_FQN = fullfile(current_out_path, current_output_name_ext);
             fnTransformInputFileToOutputFileByMethod(input_file_FQN, output_file_FQN, method_string);
-            current_processed_file_list{end+1} = input_file_FQN;
+            current_processed_in_file_list{end+1} = input_file_FQN;
         end
     end
 end
@@ -362,23 +367,73 @@ end
 return
 end
 
-function [ current_processed_in_file_list ] = fnProcessTrackerLogs( current_session_id, current_in_path, current_out_path, option_struct, method_string )
+function [ current_processed_in_file_list ] = fnProcessTrackerLogs( current_session_id, current_in_path, current_out_path, input_name_match_regexp_list, input_name_suffix_list, output_subdirname, method_string )
 % process the tracker log files
 % create the canonical fullfile(current_out_path, trackerlogfiles) sub
 % directory and place all trackerlogs that belong to that session there
 
+
+% overridable defaults
+if ~exist('input_name_match_regexp_list', 'var') || isempty(input_name_match_regexp_list)
+      input_name_match_regexp_list =  {'^TrackerLog--', '.trackerlog.txt$'};
+end
+if ~exist('input_name_suffix_list', 'var') || isempty(input_name_suffix_list)
+      input_name_suffix_list =  {'[0-9].txt$', '[0-9].txt.gz$'};
+end
+if ~exist('output_name_suffix_list', 'var') || isempty(output_name_suffix_list)
+      output_name_suffix_list =  {'.trackerlog.txt', '.trackerlog.txt.gz'};
+end
+if ~exist('output_subdirname', 'var') || isempty(output_subdirname)
+      output_subdirname =  'trackerlogfiles';
+end
+
+current_processed_in_file_list = {};
+
+
+% where to store the trackerlog files
+output_path = fullfile(current_out_path, option_struct.output_subdirname);
+% make sure the output path actually exists.
+if isempty(dir(output_path)),
+    mkdir(output_path);
+end
+
+input_file_FQN_list = {};
+%output_file_FQN_list = {};
+
+
 % search for all trackerlog files in the known locations in order of ease:
-%   current_in_path/trackerlogfiles/${SESSION_ID_STRING}.trackerlog.[txt|txt.gz]
+%   current_in_path/trackerlogfiles/${SESSION_ID_STRING}.TID_${TRACKER_ID_STRING}.trackerlog.[txt|txt.gz]
+if isdir(fullfile(current_in_path, trackerlogfiles))
+
+end
 
 %   current_in_path/${SESSION_ID_STRING}_TrackerLogs/TrackerLog--*.[txt|txt.gz]
+if isdir(fullfile(current_in_path, [current_session_id, '_TrackerLogs']))
+
+end
 
 %   current_in_path/TrackerLogs/TrackerLog--*.[txt|txt.gz]
+if isdir(fullfile(current_in_path, TrackerLogs))
+    % 
+    
+end
+
 
 %   current_in_path/TrackerLog--*.[txt|txt.gz]
 
-
-
-
+% do the actual file processing
+for i_input_file_FQN = 1 : length(input_file_FQN_list)
+    current_input_file_FQN = input_file_FQN_list{i_input_file_FQN};
+    %current_output_file_FQN = output_file_FQN_list{i_input_file_FQN};
+    
+    
+    output_file_FQN = fullfile(output_path, []);
+    
+    
+    fnTransformInputFileToOutputFileByMethod(current_input_file_FQN, output_file_FQN, method_string);
+    current_processed_in_file_list{end+1} = current_input_file_FQN;
+    
+end
 
 return
 end
