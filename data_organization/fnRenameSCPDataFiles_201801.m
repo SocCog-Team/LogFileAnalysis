@@ -475,7 +475,7 @@ for i_input_file_FQN = 1 : length(input_file_FQN_list)
             % name time is less than a minute then assume a match
             if (abs(current_trackerlog_info.time_ms/60000 - round(current_session_time_ms/60000)) <= 1)
                 disp(['TrackerLog: ', current_input_name_ext, ' is matched to sessionID: ', current_session_id]);
-                out_extension = 'trackerlog.txt';
+                out_extension = '.trackerlog.txt';
                 if (current_trackerlog_info.ext_is_gz)
                     out_extension = [out_extension, '.gz'];
                 end
