@@ -41,7 +41,7 @@ method_string = 'copy'; % either move, rename or copy
 process_triallog = 1;    % this is required
 session_suffix_string = '.sessiondir';
 process_digitalinputlog = 1;
-process_trackerlogs = 0;
+process_trackerlogs = 1;
 process_leftovers = 0;
 
 % where to start the search for the data files to process?
@@ -143,7 +143,7 @@ for i_sessionlog_basedir = 1 : length(sessionlog_in_basedir_list)
     % potentially first a time based matching to the proper triallog
     if (process_trackerlogs)
         % how to detect a trackerlog, from the file name
-        trackerlogs_options.input_name_match_regexp_list =  {'^TrackerLog--', '.trackerlog.txt$'};
+        trackerlogs_options.input_name_match_regexp_list =  {'^TrackerLog--', '.trackerlog.txt'};
         % the current suffixes
         trackerlogs_options.input_name_suffix_list =  {'[0-9].txt$', '[0-9].txt.gz$'};
         % the new suffixes
@@ -157,6 +157,7 @@ for i_sessionlog_basedir = 1 : length(sessionlog_in_basedir_list)
     % basically all files not in the processed_files_by_session_id_list for
     % each session...
     if (process_leftovers)
+        % like the eve files and anything with the sessionID in the name
         
     end
 end
@@ -237,7 +238,7 @@ for i_logfile = 1 : length(current_matching_file_list)
             current_log_pathstr = fullfile(tmp_pathstr, [session_id_string, session_suffix_string]);
         else
             current_log_pathstr = fullfile(current_log_pathstr, [session_id_string, session_suffix_string]);
-        end       
+        end
     end
     
     % modify the name and extension
@@ -308,7 +309,7 @@ for i_session_id = 1 : length(session_id_list)
             current_processed_in_file_list = fnProcessDIChangelog(current_session_id, current_in_path, current_out_path, option_struct.input_name_match_regexp_list, option_struct.output_name_match_regexp_list, method_string);
             
         case 'trackerlogs'
-            current_processed_in_file_list = fnProcessTrackerLogs(current_session_id, current_in_path, current_out_path, ... 
+            current_processed_in_file_list = fnProcessTrackerLogs(current_session_id, current_in_path, current_out_path, ...
                 option_struct.input_name_match_regexp_list, option_struct.input_name_suffix_list, ...
                 option_struct.output_subdirname, method_string);
             
@@ -375,23 +376,25 @@ function [ current_processed_in_file_list ] = fnProcessTrackerLogs( current_sess
 
 % overridable defaults
 if ~exist('input_name_match_regexp_list', 'var') || isempty(input_name_match_regexp_list)
-      input_name_match_regexp_list =  {'^TrackerLog--', '.trackerlog.txt$'};
+    input_name_match_regexp_list =  {'^TrackerLog--', '.trackerlog.txt$', '.trackerlog.txt.gz$'};
 end
 if ~exist('input_name_suffix_list', 'var') || isempty(input_name_suffix_list)
-      input_name_suffix_list =  {'[0-9].txt$', '[0-9].txt.gz$'};
+    input_name_suffix_list =  {'[0-9].txt$', '[0-9].txt.gz$'};
 end
 if ~exist('output_name_suffix_list', 'var') || isempty(output_name_suffix_list)
-      output_name_suffix_list =  {'.trackerlog.txt', '.trackerlog.txt.gz'};
+    output_name_suffix_list =  {'.trackerlog.txt', '.trackerlog.txt.gz'};
 end
 if ~exist('output_subdirname', 'var') || isempty(output_subdirname)
-      output_subdirname =  'trackerlogfiles';
+    output_subdirname =  'trackerlogfiles';
 end
 
 current_processed_in_file_list = {};
+% the pattern for the dir() used to collect the proto_tracker_logfiles
+trackerlog_file_dir_wildcard_string = '*racker*og*.*';
 
 
 % where to store the trackerlog files
-output_path = fullfile(current_out_path, option_struct.output_subdirname);
+output_path = fullfile(current_out_path, output_subdirname);
 % make sure the output path actually exists.
 if isempty(dir(output_path)),
     mkdir(output_path);
@@ -403,36 +406,144 @@ input_file_FQN_list = {};
 
 % search for all trackerlog files in the known locations in order of ease:
 %   current_in_path/trackerlogfiles/${SESSION_ID_STRING}.TID_${TRACKER_ID_STRING}.trackerlog.[txt|txt.gz]
-if isdir(fullfile(current_in_path, trackerlogfiles))
-
+current_trackerlog_subdir = fullfile(current_in_path, 'trackerlogfiles');
+if isdir(current_trackerlog_subdir)
+    tmp_file_list = dir(fullfile(current_trackerlog_subdir, trackerlog_file_dir_wildcard_string));
+    for i_file_in_dir = 1 : length(tmp_file_list)
+        if ~(tmp_file_list(i_file_in_dir).isdir)
+            input_file_FQN_list{end + 1} = fullfile(current_trackerlog_subdir, tmp_file_list(i_file_in_dir).name);
+        end
+    end
 end
 
 %   current_in_path/${SESSION_ID_STRING}_TrackerLogs/TrackerLog--*.[txt|txt.gz]
-if isdir(fullfile(current_in_path, [current_session_id, '_TrackerLogs']))
-
+current_trackerlog_subdir = fullfile(current_in_path, [current_session_id, '_TrackerLogs']);
+if isdir(current_trackerlog_subdir)
+    tmp_file_list = dir(fullfile(current_trackerlog_subdir, trackerlog_file_dir_wildcard_string));
+    for i_file_in_dir = 1 : length(tmp_file_list)
+        if ~(tmp_file_list(i_file_in_dir).isdir)
+            input_file_FQN_list{end + 1} = fullfile(current_trackerlog_subdir, tmp_file_list(i_file_in_dir).name);
+        end
+    end
 end
 
-%   current_in_path/TrackerLogs/TrackerLog--*.[txt|txt.gz]
-if isdir(fullfile(current_in_path, TrackerLogs))
-    % 
-    
+%   current_in_path/TrackerLogs/TrackerLog--*.[txt|txt.gz
+current_trackerlog_subdir = fullfile(current_in_path, 'TrackerLogs');
+if isdir(current_trackerlog_subdir)
+    tmp_file_list = dir(fullfile(current_trackerlog_subdir, trackerlog_file_dir_wildcard_string));
+    for i_file_in_dir = 1 : length(tmp_file_list)
+        if ~(tmp_file_list(i_file_in_dir).isdir)
+            input_file_FQN_list{end + 1} = fullfile(current_trackerlog_subdir, tmp_file_list(i_file_in_dir).name);
+        end
+    end
 end
 
+% search directly in current_in_path
+% current_in_path/TrackerLog--*.[txt|txt.gz]
+%proto_trackerlogfile_list = dir(fullfile(current_in_path, 'TrackerLog--*.txt'));
+current_trackerlog_subdir = fullfile(current_in_path);
+tmp_file_list = dir(fullfile(current_trackerlog_subdir, trackerlog_file_dir_wildcard_string));
+for i_file_in_dir = 1 : length(tmp_file_list)
+    if ~(tmp_file_list(i_file_in_dir).isdir)
+        input_file_FQN_list{end + 1} = fullfile(current_trackerlog_subdir, tmp_file_list(i_file_in_dir).name);
+    end
+end
 
-%   current_in_path/TrackerLog--*.[txt|txt.gz]
 
 % do the actual file processing
 for i_input_file_FQN = 1 : length(input_file_FQN_list)
     current_input_file_FQN = input_file_FQN_list{i_input_file_FQN};
     %current_output_file_FQN = output_file_FQN_list{i_input_file_FQN};
     
+    [current_input_path, current_input_name, current_input_ext] = fileparts(current_input_file_FQN);
+    current_input_name_ext = [current_input_name, current_input_ext];
     
-    output_file_FQN = fullfile(output_path, []);
+    
+    for i_input_name_match_regexp = 1 : length(input_name_match_regexp_list)
+        current_input_name_match_regexp = input_name_match_regexp_list{i_input_name_match_regexp};
+        
+        % check whther the name matches the wildcard
+        if (regexp(current_input_name_ext, current_input_name_match_regexp))
+            % test whether current_input_file_FQN matches the sessionID
+            current_trackerlog_info = fnParseEventideTracklogName(current_input_name_ext);
+            
+            %extract the time of day in ms from the session id
+            current_session_time_string = current_session_id(10:15);
+            current_session_time_ms = 1000 * ((str2double(current_session_time_string(1:2)) * 60 * 60) + (str2double(current_session_time_string(3:4)) * 60) + (str2double(current_session_time_string(5:6))));
+
+            % if the time difference from session time to trackerlog file
+            % name time is less than a minute then assume a match
+            if (abs(current_trackerlog_info.time_ms/60000 - round(current_session_time_ms/60000)) <= 1)
+                disp(['TrackerLog: ', current_input_name_ext, ' is matched to sessionID: ', current_session_id]);
+                out_extension = 'trackerlog.txt';
+                if (current_trackerlog_info.ext_is_gz)
+                    out_extension = [out_extension, '.gz'];
+                end
+                
+                output_file_FQN = fullfile(output_path, [current_session_id, '.TID_', current_trackerlog_info.trackerID, out_extension]);
+                fnTransformInputFileToOutputFileByMethod(current_input_file_FQN, output_file_FQN, method_string);
+                current_processed_in_file_list{end+1} = current_input_file_FQN;
+            end
+        end
+    end
+end
+
+return
+end
+
+function [tracker_info] = fnParseEventideTracklogName( trackerlog_file_name )
+% event ide tracker log file names are constructed like:
+%TrackerLog--EyeLinkProxyTrackerA--2018-02-01--08-52.txt.gz
+% new non eventIDe style since 2018
+%20180124T072414.A_None.B_Elmo.SCP_01.TID_SecondaryPQLabTrackerB.trackerlog.txt.gz
+
+% with TRACKERMARKER--TrackerID--Year-Month-day--Hour-Minute.suffix
+% Note that Hour-Minute seems to be the rounded version of the start time
+% wall clock that becomes part of the sessionID
+
+% fill: trackerID/TID, sessionID, date, time, suffixes
+tracker_info.filename = trackerlog_file_name;
+[~, ~, tracker_info.fileextension] = fileparts(trackerlog_file_name);
+tracker_info.ext_is_gz = strcmp(tracker_info.fileextension, '.gz');
+
+
+if (regexp(trackerlog_file_name, '^TrackerLog--'))
+    % canonical eventIDE auto generated names
+    % e.g. TrackerLog--EyeLinkProxyTrackerA--2018-02-01--08-52.txt.gz
+    eventIDEInfoSeparatorString = '--';
+    InfoSeparatorIdx = strfind(trackerlog_file_name, eventIDEInfoSeparatorString);
+    if length(InfoSeparatorIdx) ~= 3
+        error(['The following trackerlog mot recognized as proper eventIDE tracker name: ', trackerlog_file_name]);
+    else
+        tracker_info.sessionID = [];
+        tracker_info.trackerID = trackerlog_file_name(InfoSeparatorIdx(1)+length(eventIDEInfoSeparatorString): InfoSeparatorIdx(2)-1);
+        tracker_info.yyyymmdd_string = trackerlog_file_name(InfoSeparatorIdx(2)+length(eventIDEInfoSeparatorString): InfoSeparatorIdx(3)-1);
+        tracker_info.yyyymmdd_string(strfind(tracker_info.yyyymmdd_string, '-')) = [];
+        dotIdx = strfind(trackerlog_file_name, '.');
+        tracker_info.hhmmss_string = [trackerlog_file_name(InfoSeparatorIdx(3)+length(eventIDEInfoSeparatorString): dotIdx-1), '-00'];
+        tracker_info.hhmmss_string(strfind(tracker_info.hhmmss_string, '-')) = [];
+        tmp = tracker_info.hhmmss_string;
+        tracker_info.time_ms = 1000 * ((str2double(tmp(1:2)) * 60 * 60) + (str2double(tmp(3:4)) * 60) + (str2double(tmp(5:6))));
+        tracker_info.session_time_string = [tracker_info.yyyymmdd_string, 'T', tracker_info.hhmmss_string];
+    end
     
     
-    fnTransformInputFileToOutputFileByMethod(current_input_file_FQN, output_file_FQN, method_string);
-    current_processed_in_file_list{end+1} = current_input_file_FQN;
+elseif (regexp(trackerlog_file_name, '.trackerlog.txt'))
+    % local style,
+    % e.g.: 20180124T072414.A_None.B_Elmo.SCP_01.TID_EyeLinkProxyTrackerA.trackerlog.txt
+    TID_idx = strfind(trackerlog_file_name, '.TID');
+    extension_idx = strfind(trackerlog_file_name, '.trackerlog.txt');
     
+    tracker_info.sessionID = trackerlog_file_name(1:TID_idx(1)-1);
+    tracker_info.trackerID = trackerlog_file_name(TID_idx+length('.TID')+1: extension_idx-1);
+    tracker_info.yyyymmdd_string = trackerlog_file_name(1:8);
+    tracker_info.hhmmss_string = trackerlog_file_name(10:15);
+    tmp = tracker_info.hhmmss_string;
+    tracker_info.time_ms = 1000 * ((str2double(tmp(1:2)) * 60 * 60) + (str2double(tmp(3:4)) * 60) + (str2double(tmp(5:6))));
+    tracker_info.session_time_string = trackerlog_file_name(1:15);
+else
+    disp(['Trackerlogfile name (', trackerlog_file_name, ') not recognized by parser, please implement.']);
+    return
 end
 
 return
