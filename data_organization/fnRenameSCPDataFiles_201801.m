@@ -39,7 +39,7 @@ override_directive = 'local';
 SCP_dirs = GetDirectoriesByHostName(override_directive);
 
 % control variables
-method_string = 'copy'; % either move, rename or copy
+method_string = 'copy'; % either move, rename or copy, ignore
 process_triallog = 1;    % this is required
 session_suffix_string = '.sessiondir';
 process_digitalinputlog = 1;
@@ -79,7 +79,7 @@ for i_sessionlog_basedir = 1 : length(sessionlog_in_basedir_list)
         % also collect potentially gzipped versions of this file
         current_matching_file_list = [current_matching_file_list, find_all_files(current_sessionlog_in_basedir, [current_wildcardstring, '.gz'], 0);];
         
-        [input_FQN_list, output_FQN_list, session_id_list] = fnProcessLogFilesFromList(current_matching_file_list, ...
+        [input_FQN_list, output_FQN_list, session_id_list, session_dir_list] = fnProcessLogFilesFromList(current_matching_file_list, ...
             current_sessionlog_in_basedir, current_sessionlog_out_basedir, session_suffix_string,...
             [current_setup_id, '.log'], [current_setup_id, '.triallog.txt'], method_string);
         
@@ -90,13 +90,14 @@ for i_sessionlog_basedir = 1 : length(sessionlog_in_basedir_list)
         % also collect potentially gzipped versions of this file
         current_matching_file_list = [current_matching_file_list, find_all_files(current_sessionlog_in_basedir, [current_wildcardstring, '.gz'], 0);];
         
-        [tmp_input_FQN_list, tmp_output_FQN_list, tmp_session_id_list] = fnProcessLogFilesFromList(current_matching_file_list, ...
+        [tmp_input_FQN_list, tmp_output_FQN_list, tmp_session_id_list, tmp_session_dir_list] = fnProcessLogFilesFromList(current_matching_file_list, ...
             current_sessionlog_in_basedir, current_sessionlog_out_basedir, session_suffix_string,...
             [current_setup_id, '.triallog.txt'], [current_setup_id, '.triallog.txt'], method_string);
         
         input_FQN_list = [input_FQN_list, tmp_input_FQN_list];
         output_FQN_list = [output_FQN_list, tmp_output_FQN_list];
         session_id_list = [session_id_list, tmp_session_id_list];
+        session_dir_list = [session_dir_list, tmp_session_dir_list];
     end
     
     % with the gzpped/unzipped, old/new suffixes there might be multiple
@@ -121,7 +122,7 @@ for i_sessionlog_basedir = 1 : length(sessionlog_in_basedir_list)
     input_FQN_list = input_FQN_list(unique_session_idx);
     output_FQN_list = output_FQN_list(unique_session_idx);
     session_id_list = session_id_list(unique_session_idx);
-    
+    session_dir_list = session_dir_list(unique_session_idx);
     
     
     
@@ -138,7 +139,7 @@ for i_sessionlog_basedir = 1 : length(sessionlog_in_basedir_list)
             '.digitalinchangelog.txt', '.digitalinchangelog.txt.gz', ...
             '.digitalinchangelog.txt', '.digitalinchangelog.txt.gz'};
         processed_files_by_session_id_list = fnProcessLogtypeBySession('digitalinchangelog', digitalinputlog_options, ...
-            session_id_list, input_FQN_list, output_FQN_list, processed_files_by_session_id_list, method_string);
+            session_id_list, session_dir_list, input_FQN_list, output_FQN_list, processed_files_by_session_id_list, method_string);
     end
     
     
@@ -153,7 +154,7 @@ for i_sessionlog_basedir = 1 : length(sessionlog_in_basedir_list)
         trackerlogs_options.output_name_suffix_list = {'.trackerlog.txt', '.trackerlog.txt.gz'};
         trackerlogs_options.output_subdirname = 'trackerlogfiles';
         processed_files_by_session_id_list = fnProcessLogtypeBySession('trackerlogs', trackerlogs_options, ...
-            session_id_list, input_FQN_list, output_FQN_list, processed_files_by_session_id_list, method_string);
+            session_id_list, session_dir_list, input_FQN_list, output_FQN_list, processed_files_by_session_id_list, method_string);
     end
     
     if (process_eve_files)        
@@ -165,7 +166,7 @@ for i_sessionlog_basedir = 1 : length(sessionlog_in_basedir_list)
         % the new suffixes
         eve_options.output_name_suffix_list = {'.eve', '.eve.gz'};
         processed_files_by_session_id_list = fnProcessLogtypeBySession('eve_files', eve_options, ...
-            session_id_list, input_FQN_list, output_FQN_list, processed_files_by_session_id_list, method_string);        
+            session_id_list, session_dir_list, input_FQN_list, output_FQN_list, processed_files_by_session_id_list, method_string);        
     end
     
     
@@ -176,7 +177,7 @@ for i_sessionlog_basedir = 1 : length(sessionlog_in_basedir_list)
         % like the eve files and anything with the sessionID in the name
         leftover_options.input_wildcard_string = '*.*';
         processed_files_by_session_id_list = fnProcessLogtypeBySession('leftovers', leftover_options, ...
-            session_id_list, input_FQN_list, output_FQN_list, processed_files_by_session_id_list, method_string);                
+            session_id_list, session_dir_list, input_FQN_list, output_FQN_list, processed_files_by_session_id_list, method_string);                
     end
 end
 
@@ -188,12 +189,13 @@ return
 end
 
 
-function [input_FQN_list, output_FQN_list, session_id_list] = fnProcessLogFilesFromList( current_matching_file_list, current_sessionlog_in_basedir, current_sessionlog_out_basedir, session_suffix_string, in_name_expression, out_name_expression, method_string )
+function [input_FQN_list, output_FQN_list, session_id_list, session_dir_list] = fnProcessLogFilesFromList( current_matching_file_list, current_sessionlog_in_basedir, current_sessionlog_out_basedir, session_suffix_string, in_name_expression, out_name_expression, method_string )
 
 return_unique_sessions_only = 0;
 input_FQN_list = current_matching_file_list;
 output_FQN_list = cell([size(input_FQN_list)]);
 session_id_list = cell([size(input_FQN_list)]);
+session_dir_list = cell([size(input_FQN_list)]);
 
 for i_logfile = 1 : length(current_matching_file_list)
     current_log_in_FQN = current_matching_file_list{i_logfile};
@@ -228,6 +230,7 @@ for i_logfile = 1 : length(current_matching_file_list)
             end
     end
     session_id_list{i_logfile} = session_id_string;
+    session_dir_list{i_logfile} = current_log_pathstr;
     
     % replace the current_sessionlog_in_basedir string with the
     % current_sessionlog_out_basedir string
@@ -287,6 +290,7 @@ if (return_unique_sessions_only)
     input_FQN_list = input_FQN_list(unique_session_idx);
     output_FQN_list = output_FQN_list(unique_session_idx);
     session_id_list = session_id_list(unique_session_idx);
+    session_dir_list = session_dir_list(unique_session_idx);
 end
 
 return
@@ -294,6 +298,13 @@ end
 
 function [] = fnTransformInputFileToOutputFileByMethod(input_file_FQN, output_file_FQN, method_string)
 % Use method to transform input_file to output_file
+
+%TODO: make sure that the output_directory actually exists
+% [out_path, ~, ~] = fileparts(output_file_FQN)
+%if isempty(dir(out_path))
+%    mkdir(out_path)
+%end
+
 
 % depending on the method either move/rename or copy
 switch lower(method_string)
@@ -314,7 +325,7 @@ end
 return
 end
 
-function [ processed_files_by_session_id_list ] = fnProcessLogtypeBySession( logtype_string, option_struct, session_id_list, input_FQN_list, output_FQN_list, processed_files_by_session_id_list, method_string )
+function [ processed_files_by_session_id_list ] = fnProcessLogtypeBySession( logtype_string, option_struct, session_id_list, session_dir_list, input_FQN_list, output_FQN_list, processed_files_by_session_id_list, method_string )
 
 for i_session_id = 1 : length(session_id_list)
     current_session_id = session_id_list{i_session_id};
@@ -337,7 +348,15 @@ for i_session_id = 1 : length(session_id_list)
                 method_string);
 
         case 'leftovers'
-            current_processed_in_file_list = fnProcessLeftovers(current_session_id, processed_files_by_session_id_list{i_session_id}, current_in_path, current_out_path, ...
+            % find all sessions that got data from the same directory
+            current_session_dir = session_dir_list{i_session_id};
+            same_dir_session_idx = find(strcmp(session_dir_list, current_session_dir));
+            processed_files_in_current_session_dir = {};
+            for i_same_dir_session = 1 : length(same_dir_session_idx)
+                processed_files_in_current_session_dir = [processed_files_in_current_session_dir, processed_files_by_session_id_list{same_dir_session_idx(i_same_dir_session)}];
+            end
+            
+            current_processed_in_file_list = fnProcessLeftovers(current_session_id, processed_files_in_current_session_dir, current_in_path, current_out_path, ...
                 option_struct.input_wildcard_string, ...
                 method_string);
             
@@ -620,7 +639,7 @@ return
 end
 
 
-function [ current_processed_in_file_list ] = fnProcessLeftovers( current_session_id, processed_files_by_current_session_id, current_in_path, current_out_path, input_wildcard_string, method_string )
+function [ current_processed_in_file_list ] = fnProcessLeftovers( current_session_id, processed_files_in_current_session_dir, current_in_path, current_out_path, input_wildcard_string, method_string )
 % process the eve files
 % if an eve file's name is not containing the current sessionID refrain
 % from moving/renaming it, but copy it instead, it might be actually been
@@ -664,12 +683,21 @@ for i_input_file_FQN = 1 : length(input_file_FQN_list)
     if ~strcmp(current_input_path, current_in_path)
         % so we found something in a sub directory
         current_in_sub_dir = regexprep(current_input_path, ['^', current_in_path], '');
-        current_output_path = fullfile(current_output_path, current_in_sub_dir);       
+        current_output_path = fullfile(current_output_path, current_in_sub_dir);
+        % does the output directory already exist?
+        if isempty(dir(current_output_path))
+            % if there are actual entries in the input_dir create the
+            % output_dir
+            if (length(dir(current_input_path)) > 2)
+                mkdir(current_output_path);
+            end
+        end
     end
     
     current_method_string = method_string;
+    
     % check whther the file has not been copied already
-    if ~ismember(current_input_file_FQN, processed_files_by_current_session_id) && ~isdir(current_input_file_FQN)
+    if ~ismember(current_input_file_FQN, processed_files_in_current_session_dir) && ~isdir(current_input_file_FQN)
         
         % if the eve does not have the session identifier in the
         % name the file might have been used from multiple
