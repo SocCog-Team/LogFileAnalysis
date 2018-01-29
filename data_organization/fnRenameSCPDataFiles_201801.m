@@ -1,4 +1,4 @@
-function [ output_args ] = fnRenameSCPDataFiles_201801( input_args )
+function [ output_args ] = fnRenameSCPDataFiles_201801( sessionlog_in_basedir_list, sessionlog_out_basedir_list )
 %FNRENAMESCPDATAFILES_201801 Make sure the renaming function will work on
 %all plattforms (windows, linux, macos)
 %   To make the naming of the log files more consistent in 2018 a few
@@ -47,12 +47,15 @@ process_trackerlogs = 1;
 process_eve_files = 1;
 process_leftovers = 1;
 
-% where to start the search for the data files to process?
-sessionlog_in_basedir_list = {fullfile(SCP_dirs.SCP_DATA_BaseDir, 'SCP-CTRL-01', 'SCP_DATA', 'SCP-CTRL-01', 'SESSIONLOGS'), ...
-    fullfile(SCP_dirs.SCP_DATA_BaseDir, 'SCP-CTRL-00', 'SCP_DATA', 'SCP-CTRL-00', 'SESSIONLOGS')};
-
-sessionlog_out_basedir_list = {fullfile(SCP_dirs.SCP_DATA_BaseDir, 'SCP_DATA', 'SCP-CTRL-01', 'SESSIONLOGS'), ...
-    fullfile(SCP_dirs.SCP_DATA_BaseDir, 'SCP_DATA', 'SCP-CTRL-00', 'SESSIONLOGS')};
+if ~exist('sessionlog_out_basedir_list', 'var') || isempty(sessionlog_in_basedir_list)
+    % where to start the search for the data files to process?
+    sessionlog_in_basedir_list = {fullfile(SCP_dirs.SCP_DATA_BaseDir, 'SCP-CTRL-01', 'SCP_DATA', 'SCP-CTRL-01', 'SESSIONLOGS'), ...
+        fullfile(SCP_dirs.SCP_DATA_BaseDir, 'SCP-CTRL-00', 'SCP_DATA', 'SCP-CTRL-00', 'SESSIONLOGS')};
+end
+if ~exist('sessionlog_out_basedir_list', 'var') || isempty(sessionlog_out_basedir_list)
+    sessionlog_out_basedir_list = {fullfile(SCP_dirs.SCP_DATA_BaseDir, 'SCP_DATA', 'SCP-CTRL-01', 'SESSIONLOGS'), ...
+        fullfile(SCP_dirs.SCP_DATA_BaseDir, 'SCP_DATA', 'SCP-CTRL-00', 'SESSIONLOGS')};
+end
 % or just do the conversion in-place
 %sessionlog_out_basedir_list = sessionlog_in_basedir_list;
 
