@@ -14,6 +14,7 @@ function [ data_struct ] = fnParseEventIDETrackerLog_v01( TrackerLog_FQN, column
 % from the header line and then use textscan to read the whole thing into
 % cell arrays, maybe merge these using the NIY add_column in
 % fn_handle_data_struct.m
+%   Gzip the TrackerLog_FQN after parsing to save space...
 %
 %TODO: 
 %   Test and remove the old add_row and add_row_to_global_struct code, as
