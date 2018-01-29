@@ -14,13 +14,15 @@ function [ output_args ] = fnRenameSCPDataFiles_201801( input_args )
 
 % TODO:
 %   save a copy of the output to file (use diary)
-%   process and match the tracker log files
+%   what to do with analysis .mat files?
+%   also gzip 
 %
 % DONE:
 %   add suffix to out put session directory
 %   create sub directory for each year (to avoid too many files/subdirectories)
 %   handle gzipped versions of the files as well
 %   canonicalize the output path to
+%   process and match the tracker log files
 
 
 
@@ -42,7 +44,8 @@ process_triallog = 1;    % this is required
 session_suffix_string = '.sessiondir';
 process_digitalinputlog = 1;
 process_trackerlogs = 1;
-process_leftovers = 0;
+process_eve_files = 1;
+process_leftovers = 1;
 
 % where to start the search for the data files to process?
 sessionlog_in_basedir_list = {fullfile(SCP_dirs.SCP_DATA_BaseDir, 'SCP-CTRL-01', 'SCP_DATA', 'SCP-CTRL-01', 'SESSIONLOGS'), ...
@@ -153,12 +156,27 @@ for i_sessionlog_basedir = 1 : length(sessionlog_in_basedir_list)
             session_id_list, input_FQN_list, output_FQN_list, processed_files_by_session_id_list, method_string);
     end
     
+    if (process_eve_files)        
+        % eve files
+        % how to detect a trackerlog, from the file name
+        eve_options.input_name_match_regexp_list =  {'.eve$', '.eve.gz$'};
+        % the current suffixes
+        eve_options.input_name_suffix_list =  {'.eve$', '.eve.gz$'};
+        % the new suffixes
+        eve_options.output_name_suffix_list = {'.eve', '.eve.gz'};
+        processed_files_by_session_id_list = fnProcessLogtypeBySession('eve_files', eve_options, ...
+            session_id_list, input_FQN_list, output_FQN_list, processed_files_by_session_id_list, method_string);        
+    end
+    
+    
     % all other files that might belong to the session
     % basically all files not in the processed_files_by_session_id_list for
     % each session...
     if (process_leftovers)
         % like the eve files and anything with the sessionID in the name
-        
+        leftover_options.input_wildcard_string = '*.*';
+        processed_files_by_session_id_list = fnProcessLogtypeBySession('leftovers', leftover_options, ...
+            session_id_list, input_FQN_list, output_FQN_list, processed_files_by_session_id_list, method_string);                
     end
 end
 
@@ -312,6 +330,16 @@ for i_session_id = 1 : length(session_id_list)
             current_processed_in_file_list = fnProcessTrackerLogs(current_session_id, current_in_path, current_out_path, ...
                 option_struct.input_name_match_regexp_list, option_struct.input_name_suffix_list, ...
                 option_struct.output_subdirname, method_string);
+
+        case 'eve_files'
+            current_processed_in_file_list = fnProcessEveFiles(current_session_id, current_in_path, current_out_path, ...
+                option_struct.input_name_match_regexp_list, option_struct.input_name_suffix_list, ...
+                method_string);
+
+        case 'leftovers'
+            current_processed_in_file_list = fnProcessLeftovers(current_session_id, processed_files_by_session_id_list{i_session_id}, current_in_path, current_out_path, ...
+                option_struct.input_wildcard_string, ...
+                method_string);
             
         case {'ignore this', 'ignore_this_too'}
             % just an example to show how to add log types to completely
@@ -490,6 +518,184 @@ end
 
 return
 end
+
+function [ current_processed_in_file_list ] = fnProcessEveFiles( current_session_id, current_in_path, current_out_path, input_name_match_regexp_list, input_name_suffix_list, method_string )
+% process the eve files
+% if an eve file's name is not containing the current sessionID refrain
+% from moving/renaming it, but copy it instead, it might be actually been
+% used by multiple experiments.
+
+
+% overridable defaults
+if ~exist('input_name_match_regexp_list', 'var') || isempty(input_name_match_regexp_list)
+    input_name_match_regexp_list =  {'.eve$', '.eve.gz$'};
+end
+if ~exist('input_name_suffix_list', 'var') || isempty(input_name_suffix_list)
+    input_name_suffix_list =  {'.eve$', '.eve.gz$'};
+end
+if ~exist('output_name_suffix_list', 'var') || isempty(output_name_suffix_list)
+    output_name_suffix_list =  {'.eve', '.eve.gz'};
+end
+if ~exist('output_subdirname', 'var') || isempty(output_subdirname)
+    output_subdirname =  'trackerlogfiles';
+end
+
+current_processed_in_file_list = {};
+% the pattern for the dir() used to collect the proto_tracker_logfiles
+eve_file_dir_wildcard_string = '*.*';
+
+% where to store the trackerlog files
+output_path = fullfile(current_out_path);
+% make sure the output path actually exists.
+if isempty(dir(output_path)),
+    mkdir(output_path);
+end
+
+
+
+input_file_FQN_list = {};
+%output_file_FQN_list = {};
+
+
+% search directly in current_in_path
+% current_in_path/TrackerLog--*.[txt|txt.gz]
+%proto_trackerlogfile_list = dir(fullfile(current_in_path, 'TrackerLog--*.txt'));
+current_eve_subdir = fullfile(current_in_path);
+tmp_file_list = dir(fullfile(current_eve_subdir, eve_file_dir_wildcard_string));
+for i_file_in_dir = 1 : length(tmp_file_list)
+    if ~(tmp_file_list(i_file_in_dir).isdir)
+        input_file_FQN_list{end + 1} = fullfile(current_eve_subdir, tmp_file_list(i_file_in_dir).name);
+    end
+end
+
+
+% do the actual file processing
+for i_input_file_FQN = 1 : length(input_file_FQN_list)
+    current_input_file_FQN = input_file_FQN_list{i_input_file_FQN};
+    %current_output_file_FQN = output_file_FQN_list{i_input_file_FQN};
+    
+    [current_input_path, current_input_name, current_input_ext] = fileparts(current_input_file_FQN);
+    current_input_name_ext = [current_input_name, current_input_ext];
+    
+    
+    for i_input_name_match_regexp = 1 : length(input_name_match_regexp_list)
+        current_input_name_match_regexp = input_name_match_regexp_list{i_input_name_match_regexp};
+        
+        current_method_string = method_string;
+        % check whther the name matches the wildcard
+        if (regexp(current_input_name_ext, current_input_name_match_regexp))
+
+ 
+                disp(['EVE: ', current_input_name_ext, ' is matched to sessionID: ', current_session_id]);
+                
+                out_extension = '.eve';
+                if (strcmp(current_input_ext, '.gz'))
+                    out_extension = [out_extension, '.gz'];
+                end
+                
+                % if the eve does not have the session identifier in the
+                % name the eve might have been used from multiple
+                % experiments in that case never move, but copy to all
+                % sessionIDs that have trillog files in the current
+                % directory
+                if isempty(strfind(current_input_name_ext, current_session_id))
+                   if ismember(current_method_string, {'rename', 'move'})
+                       disp(['Ambiguous EVE file (missing session identifier in filename), will not be moved but copied: ', current_input_name_ext]);
+                       current_method_string = 'copy';
+                   end
+                end
+                
+                
+                % do not modify the eve file names as they are referenced
+                % from inside the triallog file
+                output_file_FQN = fullfile(output_path, current_input_name_ext);
+                fnTransformInputFileToOutputFileByMethod(current_input_file_FQN, output_file_FQN, current_method_string);
+                current_processed_in_file_list{end+1} = current_input_file_FQN;
+
+        end
+    end
+end
+
+return
+end
+
+
+function [ current_processed_in_file_list ] = fnProcessLeftovers( current_session_id, processed_files_by_current_session_id, current_in_path, current_out_path, input_wildcard_string, method_string )
+% process the eve files
+% if an eve file's name is not containing the current sessionID refrain
+% from moving/renaming it, but copy it instead, it might be actually been
+% used by multiple experiments.
+
+
+% overridable defaults
+if ~exist('input_wildcard_string', 'var') || isempty(input_wildcard_string)
+    input_wildcard_string =  '*.*';
+end
+
+current_processed_in_file_list = {};
+% the pattern for the dir() used to collect the proto_tracker_logfiles
+eve_file_dir_wildcard_string = '*.*';
+
+% where to store the trackerlog files
+output_path = fullfile(current_out_path);
+% make sure the output path actually exists.
+if isempty(dir(output_path)),
+    mkdir(output_path);
+end
+
+input_file_FQN_list = {};
+%output_file_FQN_list = {};
+
+
+input_file_FQN_list = find_all_files(current_in_path, input_wildcard_string, 0);
+
+
+% do the actual file processing
+for i_input_file_FQN = 1 : length(input_file_FQN_list)
+    current_input_file_FQN = input_file_FQN_list{i_input_file_FQN};
+    
+    %current_output_file_FQN = output_file_FQN_list{i_input_file_FQN};
+    
+    [current_input_path, current_input_name, current_input_ext] = fileparts(current_input_file_FQN);
+    current_input_name_ext = [current_input_name, current_input_ext];
+    
+    % keep existing sub directory unless they are empty.
+    current_output_path = output_path;
+    if ~strcmp(current_input_path, current_in_path)
+        % so we found something in a sub directory
+        current_in_sub_dir = regexprep(current_input_path, ['^', current_in_path], '');
+        current_output_path = fullfile(current_output_path, current_in_sub_dir);       
+    end
+    
+    current_method_string = method_string;
+    % check whther the file has not been copied already
+    if ~ismember(current_input_file_FQN, processed_files_by_current_session_id) && ~isdir(current_input_file_FQN)
+        
+        % if the eve does not have the session identifier in the
+        % name the file might have been used from multiple
+        % experiments in that case never move, but copy to all
+        % sessionIDs that have triallog files in the current
+        % directory
+        if isempty(strfind(current_input_name_ext, current_session_id))
+            if ismember(current_method_string, {'rename', 'move'})
+                disp(['Ambiguous file name (missing session identifier in filename), will not be moved but copied: ', current_input_name_ext]);
+                current_method_string = 'copy';
+            end
+        end
+        
+        
+        % do not modify the eve file names as they are referenced
+        % from inside the triallog file
+        output_file_FQN = fullfile(current_output_path, current_input_name_ext);
+        fnTransformInputFileToOutputFileByMethod(current_input_file_FQN, output_file_FQN, current_method_string);
+        current_processed_in_file_list{end+1} = current_input_file_FQN;
+        
+    end
+end
+
+return
+end
+
 
 function [tracker_info] = fnParseEventideTracklogName( trackerlog_file_name )
 % event ide tracker log file names are constructed like:
