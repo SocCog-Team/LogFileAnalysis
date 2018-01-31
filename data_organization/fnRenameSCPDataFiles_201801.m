@@ -226,7 +226,11 @@ for i_logfile = 1 : length(current_matching_file_list)
             session_id_string = current_log_name;
         otherwise
             if ~isempty(strfind(in_name_expression, '.triallog.txt'))
-                session_id_string = regexprep(current_log_name_ext, '.triallog.txt', '');
+                if (isunix)
+                    session_id_string = regexprep(current_log_name_ext, '.triallog.txt', '');
+                else
+                    session_id_string = strrep(current_log_name_ext, '.triallog.txt', '');
+                end
             else
                 disp('Could not deduce the session id from the log file name');
                 session_id_string = '';
@@ -238,7 +242,11 @@ for i_logfile = 1 : length(current_matching_file_list)
     % replace the current_sessionlog_in_basedir string with the
     % current_sessionlog_out_basedir string
     if ~strcmp(current_sessionlog_in_basedir, current_sessionlog_out_basedir)
-        current_log_pathstr = regexprep(current_log_pathstr, current_sessionlog_in_basedir, current_sessionlog_out_basedir);
+        if (isunix)
+            current_log_pathstr = regexprep(current_log_pathstr, current_sessionlog_in_basedir, current_sessionlog_out_basedir);
+        else
+            current_log_pathstr = strrep(current_log_pathstr, current_sessionlog_in_basedir, current_sessionlog_out_basedir);
+        end
     end
     
     
@@ -247,7 +255,11 @@ for i_logfile = 1 : length(current_matching_file_list)
     session_date_string = session_id_string(1:8);
     % replace any /YYYYMMMDD/ string with /YYYY/YYMMDD, add a final / to
     % avoid failure if a path ends with ".../YYYYMMDD"
-    current_log_pathstr = regexprep([current_log_pathstr, filesep], [filesep, session_date_string, filesep], [filesep, session_id_string(1:4), filesep, session_id_string(3:8), filesep]);
+    if (isunix)
+        current_log_pathstr = regexprep([current_log_pathstr, filesep], [filesep, session_date_string, filesep], [filesep, session_id_string(1:4), filesep, session_id_string(3:8), filesep]);
+    else
+        current_log_pathstr = strrep([current_log_pathstr, filesep], [filesep, session_date_string, filesep], [filesep, session_id_string(1:4), filesep, session_id_string(3:8), filesep]);
+    end
     if strcmp(current_log_pathstr(end), filesep)
         current_log_pathstr(end) = [];
     end
@@ -267,7 +279,11 @@ for i_logfile = 1 : length(current_matching_file_list)
     
     % modify the name and extension
     if ~strcmp(in_name_expression, out_name_expression)
-        current_log_name_ext = regexprep(current_log_name_ext, in_name_expression, out_name_expression);
+        if (isunix)
+            current_log_name_ext = regexprep(current_log_name_ext, in_name_expression, out_name_expression);
+        else
+            current_log_name_ext = strrep(current_log_name_ext, in_name_expression, out_name_expression);
+        end
     end
     
     % construct the current_triallog_out_FQN
@@ -406,7 +422,11 @@ for i_file = 1 : length(all_files_in_input_dir)
         if ~isempty(current_input_name_match_regexp_idx) && ~isempty(regexp(current_file_struct.name, ['^', current_session_id]))
             disp(['Found match for: ', current_file_struct.name, ' -> ', current_input_name_match_regexp]);
             %[~, current_file_name, current_file_ext] = fileparts(current_file_struct.name);
-            current_output_name_ext = regexprep(current_file_struct.name, current_input_name_match_regexp, current_output_name_match_regexp);
+            if (isunix)
+                current_output_name_ext = regexprep(current_file_struct.name, current_input_name_match_regexp, current_output_name_match_regexp);
+            else
+                current_output_name_ext = strrep(current_file_struct.name, current_input_name_match_regexp, current_output_name_match_regexp);
+            end
             input_file_FQN = fullfile(current_in_path, current_file_struct.name);
             output_file_FQN = fullfile(current_out_path, current_output_name_ext);
             fnTransformInputFileToOutputFileByMethod(input_file_FQN, output_file_FQN, method_string);
@@ -685,7 +705,11 @@ for i_input_file_FQN = 1 : length(input_file_FQN_list)
     current_output_path = output_path;
     if ~strcmp(current_input_path, current_in_path)
         % so we found something in a sub directory
-        current_in_sub_dir = regexprep(current_input_path, ['^', current_in_path], '');
+        if (isunix)
+            current_in_sub_dir = regexprep(current_input_path, ['^', current_in_path], '');
+        else
+            current_in_sub_dir = strrep(current_input_path, current_in_path, '');
+        end
         current_output_path = fullfile(current_output_path, current_in_sub_dir);
         % does the output directory already exist?
         if isempty(dir(current_output_path))
