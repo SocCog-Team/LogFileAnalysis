@@ -3,21 +3,21 @@ function [ report_struct, version_string ] = fnParseEventIDEReportSCPv06( Report
 %of the social cognition plattform at the DPZ
 %   Try to read in eventIDE report files for DPZ SCP experiments
 % hard code data types according to standard eventIDE columns
+%
 %TODO: implement and benchmark a textscan based method with after parsing
-% Ideally each record type consist out of three lines, header, types, and
-% data
-%
-% DONE:
-%   Changed sessionID to contain the numeric setup identifier at the least
-%   significant position instead of the most
-%
-% TODO:
+%   Ideally each record type consist out of three lines, header, types, and data
 %	Synthesize Enum_struct for sessions from before the Enums were stored
 %	Add ENUM pre/suffix to unique lists and _*_idx columns created from	enum values
 %   Turn the Session_struct data into data columns (session data changes rarely, but does change...)
 %   allow to read in an additional data file per log file to localize fix
 %       ups and add not automatically added per trial/per session
 %       variables...
+%
+% DONE:
+%   Changed sessionID to contain the numeric setup identifier at the least
+%   significant position instead of the most
+%
+
 
 
 global data_struct;	%% ATTENTION there can only be one concurrent user of this global variable, so reserve for the trial table
@@ -32,10 +32,10 @@ disp(['Starting: ', mfilename]);
 dbstop if error
 fq_mfilename = mfilename('fullpath');
 mfilepath = fileparts(fq_mfilename);
-
+calling_dir = pwd;
 
 save_matfile = 1;
-version_string = '.v010';	% we append this to the filename to figure out whether a report file should be re-parsed... this needs to be updated whenthe parser changes
+version_string = '.v011';	% we append this to the filename to figure out whether a report file should be re-parsed... this needs to be updated whenthe parser changes
 
 suffix_string = '';
 test_timing = 0;
@@ -327,6 +327,18 @@ if ~isempty(fieldnames(Session_struct))
 	SessionByTrial_struct = fnConvertTimestampedChangeDataToByTrialData(Session_struct, 'Session', data_struct.data(:, data_struct.cn.Timestamp), data_struct.data(:, data_struct.cn.TrialNumber));
 end
 
+
+% if a XXX.m exists in ReportLog_Dir execute it to add more data to mat
+% file, like additional columns for data that was added manually
+if exist(fullfile(ReportLog_Dir, 'fnDefineAndAddPerSessionDataColumns.m'), 'file')
+    disp(['Found local fnDefineAndAddPerSessionDataColumns function in ', ReportLog_Dir, ' attempting to evaluate this.']);
+    % since the data directory is not in the matlab path we need to go there so matlab will find this 
+    cd(ReportLog_Dir);
+    data_struct = fnDefineAndAddPerSessionDataColumns(data_struct, LoggingInfo_struct.SessionLogFileName);
+    
+    % now back to where we came from
+    cd(calling_dir);
+end
 
 report_struct = data_struct;
 report_struct.EventIDEinfo = IDinfo_struct;
