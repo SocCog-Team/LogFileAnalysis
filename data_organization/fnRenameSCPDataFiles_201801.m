@@ -327,8 +327,8 @@ function [] = fnTransformInputFileToOutputFileByMethod(input_file_FQN, output_fi
 %end
 
 % instead of trying to gzip a file twice, just copy/move it
-[path, name, ext] = fileparts(input_file_FQN);
-if strcmp(ext, '.gz')
+[in_path, in_name, in_ext] = fileparts(input_file_FQN);
+if strcmp(in_ext, '.gz')
     switch lower(method_string)
         case {'gzip', 'gzip_copy'}
             disp('Input file is already gzipped, copying instead of zipping again.');
@@ -338,6 +338,20 @@ if strcmp(ext, '.gz')
             method_string = 'move';
     end
 end
+
+% windows seems to enforce that absolute filenames are <= 256 characters
+% long, this is less than ideal, but might be worked around by using a
+% relative path temporarily
+relative_out_path = 0;
+if (ispc) && (length(output_file_FQN > 256))
+    [out_path, out_name, out_ext] = fileparts(output_file_FQN);
+    relative_out_path = 1;
+    callers_path = pwd;
+    cd(out_path);
+    disp(['Changing into out_dir to work-around windows path limits; out_dir: ', out_path]);
+    output_file_FQN = fullfile('.', [out_name, out_ext]);
+end
+        
 
 % depending on the method either move/rename or copy
 switch lower(method_string)
@@ -363,6 +377,10 @@ switch lower(method_string)
         delete(input_file_FQN);
     otherwise
         error(['Processing method: ', method_string, ' not handled yet...']);
+end
+
+if (relative_out_path)
+    cd(callers_path);
 end
 return
 end
