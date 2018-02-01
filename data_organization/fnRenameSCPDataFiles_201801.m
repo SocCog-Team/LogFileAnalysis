@@ -15,7 +15,7 @@ function [ output_args ] = fnRenameSCPDataFiles_201801( sessionlog_in_basedir_li
 % TODO:
 %   save a copy of the output to file (use diary)
 %   what to do with analysis .mat files?
-%   also gzip 
+%   also allow to compress selected file types
 %
 % DONE:
 %   add suffix to out put session directory
@@ -324,6 +324,18 @@ function [] = fnTransformInputFileToOutputFileByMethod(input_file_FQN, output_fi
 %    mkdir(out_path)
 %end
 
+% instead of trying to gzip a file twice, just copy/move it
+[path, name, ext] = fileparts(input_file_FQN);
+if strcmp(ext, '.gz')
+    switch lower(method_string)
+        case {'gzip', 'gzip_copy'}
+            disp('Input file is already gzipped, copying instead of zipping again.');
+            method_string = 'copy';
+        case {'gzip_move'}
+            disp('Input file is already gzipped, moving instead of zipping again.');
+            method_string = 'move';
+    end
+end
 
 % depending on the method either move/rename or copy
 switch lower(method_string)
@@ -338,6 +350,15 @@ switch lower(method_string)
     case {'none', 'ignore'}
         disp(['Ignoring: ', input_file_FQN]);
         disp(['      to: ', output_file_FQN]);
+    case {'gzip', 'gzip_copy'}
+        disp(['Gzipping : ', input_file_FQN]);
+        disp(['(copy) to: ', [output_file_FQN, '.gz']]);
+        gzip(input_file_FQN, fileparts(output_file_FQN));
+    case {'gzip_move'}
+        disp(['Gzipping : ', input_file_FQN]);
+        disp(['(move) to: ', [output_file_FQN, '.gz']]);
+        gzip(input_file_FQN, fileparts(output_file_FQN));
+        delete(input_file_FQN);
     otherwise
         error(['Processing method: ', method_string, ' not handled yet...']);
 end
