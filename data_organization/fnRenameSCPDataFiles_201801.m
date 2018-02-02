@@ -343,7 +343,7 @@ end
 % long, this is less than ideal, but might be worked around by using a
 % relative path temporarily
 relative_out_path = 0;
-if (ispc) && (length(output_file_FQN > 256))
+if (ispc) && (length(output_file_FQN) > 256)
     [out_path, out_name, out_ext] = fileparts(output_file_FQN);
     relative_out_path = 1;
     callers_path = pwd;
