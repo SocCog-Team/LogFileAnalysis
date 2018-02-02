@@ -300,7 +300,7 @@ for i_logfile = 1 : length(current_matching_file_list)
     
     output_FQN_list{i_logfile} = current_log_out_FQN;
     
-    fnTransformInputFileToOutputFileByMethod(current_log_in_FQN, current_log_out_FQN, method_string)
+    status = fnTransformInputFileToOutputFileByMethod(current_log_in_FQN, current_log_out_FQN, method_string);
 end
 
 if (return_unique_sessions_only)
@@ -317,7 +317,52 @@ end
 return
 end
 
-function [] = fnTransformInputFileToOutputFileByMethod(input_file_FQN, output_file_FQN, method_string)
+function [status, out_struct] = fnDoTransformInputFileToOutputFileByMethod(input_file_FQN, output_file_FQN, method_string)
+
+out_struct.status = 1;  % 1 success 0 failure
+out_struct.message = '';
+out_struct.messageid = '';
+
+% depending on the method either move/rename or copy
+switch lower(method_string)
+    case {'rename', 'move'}
+        disp(['Moving: ', input_file_FQN]);
+        disp(['    to: ', output_file_FQN]);
+        [out_struct.status, out_struct.message, out_struct.messageid] = movefile(input_file_FQN, output_file_FQN);
+    case 'copy'
+        disp(['Copying: ', input_file_FQN]);
+        disp(['     to: ', output_file_FQN]);
+        [out_struct.status, out_struct.message, out_struct.messageid] = copyfile(input_file_FQN, output_file_FQN);
+    case {'none', 'ignore'}
+        disp(['Ignoring: ', input_file_FQN]);
+        disp(['      to: ', output_file_FQN]);
+    case {'gzip', 'gzip_copy'}
+        disp(['Gzipping : ', input_file_FQN]);
+        disp(['(copy) to: ', [output_file_FQN, '.gz']]);
+        gzip(input_file_FQN, fileparts(output_file_FQN));
+        % did we actually write the target file
+        if ~exist([output_file_FQN, '.gz'], 'file') || isdir([output_file_FQN, '.gz'])
+            out_struct.status = 0;
+        end
+    case {'gzip_move'}
+        disp(['Gzipping : ', input_file_FQN]);
+        disp(['(move) to: ', [output_file_FQN, '.gz']]);
+        gzip(input_file_FQN, fileparts(output_file_FQN));
+        if ~exist([output_file_FQN, '.gz'], 'file') || isdir([output_file_FQN, '.gz'])
+            out_struct.status = 0;
+        end
+        delete(input_file_FQN);
+    otherwise
+        error(['Processing method: ', method_string, ' not handled yet...']);
+end
+
+% to allow easier use of this function as boolean
+status = out_struct.status;
+
+return
+end
+
+function [status] = fnTransformInputFileToOutputFileByMethod(input_file_FQN, output_file_FQN, method_string)
 % Use method to transform input_file to output_file
 
 %TODO: make sure that the output_directory actually exists
@@ -342,46 +387,40 @@ end
 % windows seems to enforce that absolute filenames are <= 256 characters
 % long, this is less than ideal, but might be worked around by using a
 % relative path temporarily
-relative_out_path = 0;
-if (ispc) && (length(output_file_FQN) > 256)
+% unfortunately this does not work as the 
+if (ispc) && ((length(output_file_FQN) > 259) || ((length(input_file_FQN) > 259)))
     [out_path, out_name, out_ext] = fileparts(output_file_FQN);
-    relative_out_path = 1;
+    %[in_path, in_name, in_ext] = fileparts(input_file_FQN);
     callers_path = pwd;
+    % attempt to work around windows pathname restrictions by copy/move to
+    % the root directory from the input directory sand from root to the
+    % output directory, by using relative path instead of absolute ones
+    cd(in_path);
+    disp(['Changing into in_dir to work-around windows path limits; in_dir: ', in_path]);
+    tmp_input_file_FQN_relativ = fullfile('.', [in_name, in_ext]);
+    tmp_output_file_FQN = fullfile(filesep, [out_name, out_ext]);
+    [status, cmd_output] = fnDoTransformInputFileToOutputFileByMethod(tmp_input_file_FQN_relativ, tmp_output_file_FQN, method_string);
+    if ~status
+        disp(['Failed to ', method_string, ' ', tmp_file_FQN_relativ, ' to ', tmp_output_file_FQN]);
+        keyboard ; % use dbcont to resume execution
+    end
     cd(out_path);
-    disp(['Changing into out_dir to work-around windows path limits; out_dir: ', out_path]);
-    output_file_FQN = fullfile('.', [out_name, out_ext]);
+    tmp_input_file_FQN = tmp_output_file_FQN;
+    tmp_output_file_FQN_relativ = fullfile('.', [out_name, out_ext]);
+    [status, cmd_output] = fnDoTransformInputFileToOutputFileByMethod(tmp_input_file_FQN, tmp_output_file_FQN_relativ, method_string);
+    if ~status
+        disp(['Failed to ', method_string, ' ', tmp_input_file_FQN, ' to ', tmp_output_file_FQN_relativ]);
+        keyboard ; % use dbcont to resume execution
+    end
+else
+    % unix systems do not seem to require these gymnastics
+    [status, cmd_output] = fnDoTransformInputFileToOutputFileByMethod(input_file_FQN, output_file_FQN, method_string);
+     if ~status
+        disp(['Failed to ', method_string, ' ', input_file_FQN, ' to ', output_file_FQN]);
+        keyboard ; % use dbcont to resume execution
+    end
 end
         
-
-% depending on the method either move/rename or copy
-switch lower(method_string)
-    case {'rename', 'move'}
-        disp(['Moving: ', input_file_FQN]);
-        disp(['    to: ', output_file_FQN]);
-        movefile(input_file_FQN, output_file_FQN);
-    case 'copy'
-        disp(['Copying: ', input_file_FQN]);
-        disp(['     to: ', output_file_FQN]);
-        copyfile(input_file_FQN, output_file_FQN);
-    case {'none', 'ignore'}
-        disp(['Ignoring: ', input_file_FQN]);
-        disp(['      to: ', output_file_FQN]);
-    case {'gzip', 'gzip_copy'}
-        disp(['Gzipping : ', input_file_FQN]);
-        disp(['(copy) to: ', [output_file_FQN, '.gz']]);
-        gzip(input_file_FQN, fileparts(output_file_FQN));
-    case {'gzip_move'}
-        disp(['Gzipping : ', input_file_FQN]);
-        disp(['(move) to: ', [output_file_FQN, '.gz']]);
-        gzip(input_file_FQN, fileparts(output_file_FQN));
-        delete(input_file_FQN);
-    otherwise
-        error(['Processing method: ', method_string, ' not handled yet...']);
-end
-
-if (relative_out_path)
-    cd(callers_path);
-end
 return
 end
 
@@ -470,8 +509,10 @@ for i_file = 1 : length(all_files_in_input_dir)
             end
             input_file_FQN = fullfile(current_in_path, current_file_struct.name);
             output_file_FQN = fullfile(current_out_path, current_output_name_ext);
-            fnTransformInputFileToOutputFileByMethod(input_file_FQN, output_file_FQN, method_string);
-            current_processed_in_file_list{end+1} = input_file_FQN;
+            status = fnTransformInputFileToOutputFileByMethod(input_file_FQN, output_file_FQN, method_string);
+            if (status)
+                current_processed_in_file_list{end+1} = input_file_FQN;
+            end
         end
     end
 end
@@ -592,8 +633,10 @@ for i_input_file_FQN = 1 : length(input_file_FQN_list)
                 end
                 
                 output_file_FQN = fullfile(output_path, [current_session_id, '.TID_', current_trackerlog_info.trackerID, out_extension]);
-                fnTransformInputFileToOutputFileByMethod(current_input_file_FQN, output_file_FQN, method_string);
-                current_processed_in_file_list{end+1} = current_input_file_FQN;
+                status = fnTransformInputFileToOutputFileByMethod(current_input_file_FQN, output_file_FQN, method_string);
+                if (status)
+                    current_processed_in_file_list{end+1} = current_input_file_FQN;
+                end
             end
         end
     end
@@ -692,9 +735,10 @@ for i_input_file_FQN = 1 : length(input_file_FQN_list)
                 % do not modify the eve file names as they are referenced
                 % from inside the triallog file
                 output_file_FQN = fullfile(output_path, current_input_name_ext);
-                fnTransformInputFileToOutputFileByMethod(current_input_file_FQN, output_file_FQN, current_method_string);
-                current_processed_in_file_list{end+1} = current_input_file_FQN;
-
+                status = fnTransformInputFileToOutputFileByMethod(current_input_file_FQN, output_file_FQN, current_method_string);
+                if (status)
+                    current_processed_in_file_list{end+1} = current_input_file_FQN;
+                end
         end
     end
 end
@@ -783,9 +827,10 @@ for i_input_file_FQN = 1 : length(input_file_FQN_list)
         % do not modify the eve file names as they are referenced
         % from inside the triallog file
         output_file_FQN = fullfile(current_output_path, current_input_name_ext);
-        fnTransformInputFileToOutputFileByMethod(current_input_file_FQN, output_file_FQN, current_method_string);
-        current_processed_in_file_list{end+1} = current_input_file_FQN;
-        
+        status = fnTransformInputFileToOutputFileByMethod(current_input_file_FQN, output_file_FQN, current_method_string);
+        if (status)
+            current_processed_in_file_list{end+1} = current_input_file_FQN;
+        end
     end
 end
 
