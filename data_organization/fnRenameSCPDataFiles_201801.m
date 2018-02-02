@@ -413,33 +413,14 @@ if (ispc) && (status == 0)
     % this might be related to the path length limit,
     % windows seems to enforce that absolute filenames (including the drive 
     % letter) are <= 260 characters long, this is less than ideal, but 
-    % might be worked around by using a relative path temporarily
-    % unfortunately this does not work as the
+    % can be worked around by using the subst command to turn the over-long
+    % paths into short drive letters.
+
     if ((length(output_file_FQN) > 259) || ((length(input_file_FQN) > 259)))
         disp(['The initial attempt to process ', input_file_FQN, ' failed!']);
         disp('We encountered path component(s) larger than windows'' traditional limit of ~260 characters.');
         disp(['Input FQN length: ', num2str(length(input_file_FQN)), '; Output FQN length: ', num2str(length(output_file_FQN))]);      
         
-        % Nope, at least for matlab 2016b LongPathsEnabled =1 is not
-        % sufficient to trick matlab into processing long file/path names
-        % under windows
-        %disp('This might be fixable locally for windows10 by setting the following registry key (use regedit.exe:');
-        %disp('HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\FileSystem -> LongPathsEnabled to 1');
-        %-> DOES NOT WORK
-        
-        % try windows magic marker for long file names
-        %[status, cmd_output] = fnDoTransformInputFileToOutputFileByMethod(['\\?\', input_file_FQN], ['\\?\', output_file_FQN], 'copy');
-        %-> DOES NOT WORK
-        
-        % attempt to use a stage-wise processing with shorter path
-        % intermedaries and relative path's from input and output
-        % directory:\
-        %-> DOES NOT WORK
-        
-        % next idea, use system(subst) to get a shorter handle to the
-        % target directory, the source path should by all means already be
-        % shorter than the maximum, otherwise the files would have been
-        % hard to create in the first place
         
         %[in_path, in_name, in_ext] = fileparts(input_file_FQN);
         if ~isempty(input_subst_drive_letter) && (length(input_file_FQN) > 260)
