@@ -336,6 +336,11 @@ switch lower(method_string)
     case {'none', 'ignore'}
         disp(['Ignoring: ', input_file_FQN]);
         disp(['      to: ', output_file_FQN]);
+    case {'fail', 'break'}
+        % this is for debugging
+        disp(['Failing: ', input_file_FQN]);
+        disp(['     to: ', output_file_FQN]);
+        out_struct.status = 0;
     case {'gzip', 'gzip_copy'}
         disp(['Gzipping : ', input_file_FQN]);
         disp(['(copy) to: ', [output_file_FQN, '.gz']]);
@@ -365,6 +370,21 @@ end
 function [status] = fnTransformInputFileToOutputFileByMethod(input_file_FQN, output_file_FQN, method_string)
 % Use method to transform input_file to output_file
 
+persistent AssignedWinDriveLettersList input_subst_drive_letter output_subst_drive_letter
+
+if (ispc)
+    % only do these things once...
+    if isempty(AssignedWinDriveLettersList)
+        AssignedWinDriveLettersList = fnGetWindowsDriveLetterList();
+    end
+    if isempty(input_subst_drive_letter)
+        input_subst_drive_letter = fnSubstDrivePathToNextFreeDriveLetter(input_file_FQN, 'SESSIONLOGS', 'delete');
+    end
+    if isempty(output_subst_drive_letter)
+        output_subst_drive_letter = fnSubstDrivePathToNextFreeDriveLetter(output_file_FQN, 'SESSIONLOGS', 'delete');
+    end
+end
+
 %TODO: make sure that the output_directory actually exists
 % [out_path, ~, ~] = fileparts(output_file_FQN)
 %if isempty(dir(out_path))
@@ -384,43 +404,87 @@ if strcmp(in_ext, '.gz')
     end
 end
 
-% windows seems to enforce that absolute filenames are <= 256 characters
-% long, this is less than ideal, but might be worked around by using a
-% relative path temporarily
-% unfortunately this does not work as the 
-if (ispc) && ((length(output_file_FQN) > 259) || ((length(input_file_FQN) > 259)))
-    [out_path, out_name, out_ext] = fileparts(output_file_FQN);
-    %[in_path, in_name, in_ext] = fileparts(input_file_FQN);
-    callers_path = pwd;
-    % attempt to work around windows pathname restrictions by copy/move to
-    % the root directory from the input directory sand from root to the
-    % output directory, by using relative path instead of absolute ones
-    cd(in_path);
-    disp(['Changing into in_dir to work-around windows path limits; in_dir: ', in_path]);
-    tmp_input_file_FQN_relativ = fullfile('.', [in_name, in_ext]);
-    tmp_output_file_FQN = fullfile(filesep, [out_name, out_ext]);
-    [status, cmd_output] = fnDoTransformInputFileToOutputFileByMethod(tmp_input_file_FQN_relativ, tmp_output_file_FQN, method_string);
-    if ~status
-        disp(['Failed to ', method_string, ' ', tmp_file_FQN_relativ, ' to ', tmp_output_file_FQN]);
-        keyboard ; % use dbcont to resume execution
+
+% now try to process the files
+[status, cmd_output] = fnDoTransformInputFileToOutputFileByMethod(input_file_FQN, output_file_FQN, method_string);
+
+if (ispc) && (status == 0)
+    % the initial attempt at transfering the file failed, if on windows
+    % this might be related to the path length limit,
+    % windows seems to enforce that absolute filenames (including the drive 
+    % letter) are <= 260 characters long, this is less than ideal, but 
+    % might be worked around by using a relative path temporarily
+    % unfortunately this does not work as the
+    if ((length(output_file_FQN) > 259) || ((length(input_file_FQN) > 259)))
+        disp(['The initial attempt to process ', input_file_FQN, ' failed!']);
+        disp('We encountered path component(s) larger than windows'' traditional limit of ~260 characters.');
+        disp(['Input FQN length: ', num2str(length(input_file_FQN)), '; Output FQN length: ', num2str(length(output_file_FQN))]);      
+        
+        % Nope, at least for matlab 2016b LongPathsEnabled =1 is not
+        % sufficient to trick matlab into processing long file/path names
+        % under windows
+        %disp('This might be fixable locally for windows10 by setting the following registry key (use regedit.exe:');
+        %disp('HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\FileSystem -> LongPathsEnabled to 1');
+        %-> DOES NOT WORK
+        
+        % try windows magic marker for long file names
+        %[status, cmd_output] = fnDoTransformInputFileToOutputFileByMethod(['\\?\', input_file_FQN], ['\\?\', output_file_FQN], 'copy');
+        %-> DOES NOT WORK
+        
+        % attempt to use a stage-wise processing with shorter path
+        % intermedaries and relative path's from input and output
+        % directory:\
+        %-> DOES NOT WORK
+        
+        % next idea, use system(subst) to get a shorter handle to the
+        % target directory, the source path should by all means already be
+        % shorter than the maximum, otherwise the files would have been
+        % hard to create in the first place
+        
+        %[in_path, in_name, in_ext] = fileparts(input_file_FQN);
+        if ~isempty(input_subst_drive_letter) && (length(input_file_FQN) > 260)
+            disp(['Substituting ', input_subst_drive_letter, ' for ', in_path]);
+            [subst_status, subst_output] = system(['subst ', input_subst_drive_letter, ' ', in_path]);
+            tmp_input_file_FQN = fullfile(input_subst_drive_letter, [in_name, in_ext]);
+        else
+            tmp_input_file_FQN = input_file_FQN;
+        end
+        
+        [out_path, out_name, out_ext] = fileparts(output_file_FQN);
+        if ~isempty(output_subst_drive_letter) && (length(output_file_FQN) > 260)
+            disp(['Substituting ', output_subst_drive_letter, ' for ', out_path]);
+            [subst_status, subst_output] = system(['subst ', output_subst_drive_letter, ' ', out_path]);
+            tmp_output_file_FQN = fullfile(output_subst_drive_letter, [out_name, out_ext]);
+        else
+            tmp_output_file_FQN = output_file_FQN;
+        end
+        % now try again
+        [status, cmd_output] = fnDoTransformInputFileToOutputFileByMethod(tmp_input_file_FQN, tmp_output_file_FQN, method_string);
+        
+        % clean up the subst junk
+        if ~isempty(input_subst_drive_letter) && (length(input_file_FQN) > 260)
+            [subst_status, subst_output] = system(['subst ', input_subst_drive_letter, ' /d']);
+            tmp_input_file_FQN = [];
+        end
+        
+        if ~isempty(output_subst_drive_letter) && (length(output_file_FQN) > 260)
+            [subst_status, subst_output] = system(['subst ', output_subst_drive_letter, ' /d']);
+            tmp_output_file_FQN = [];
+        end    
+      
+        
     end
-    cd(out_path);
-    tmp_input_file_FQN = tmp_output_file_FQN;
-    tmp_output_file_FQN_relativ = fullfile('.', [out_name, out_ext]);
-    [status, cmd_output] = fnDoTransformInputFileToOutputFileByMethod(tmp_input_file_FQN, tmp_output_file_FQN_relativ, method_string);
-    if ~status
-        disp(['Failed to ', method_string, ' ', tmp_input_file_FQN, ' to ', tmp_output_file_FQN_relativ]);
-        keyboard ; % use dbcont to resume execution
-    end
-else
-    % unix systems do not seem to require these gymnastics
-    [status, cmd_output] = fnDoTransformInputFileToOutputFileByMethod(input_file_FQN, output_file_FQN, method_string);
-     if ~status
+end
+
+if ~status
+    if strcmp(method_string, 'fail')
+        disp(['Succeeded to ', method_string, ' ', input_file_FQN, ' to ', output_file_FQN]);
+    else
         disp(['Failed to ', method_string, ' ', input_file_FQN, ' to ', output_file_FQN]);
         keyboard ; % use dbcont to resume execution
     end
 end
-        
+
 return
 end
 
@@ -894,4 +958,52 @@ else
 end
 
 return
+end
+
+
+function [ AssignedWinDriveLettersList ] = fnGetWindowsDriveLetterList()     
+    [system_status, AssignedWinDriveLetters] = system('wmic logicaldisk get caption');
+        % this might need checking for sanity
+        colon_idx = strfind(AssignedWinDriveLetters, ':');
+        AssignedWinDriveLettersList = cell(size(colon_idx));
+        for i_colon = 1 : length(colon_idx)
+            AssignedWinDriveLettersList{i_colon} = AssignedWinDriveLetters(colon_idx(i_colon)-1);
+        end
+return 
+end
+
+function [ SubstitutedDriveLetter ] = fnSubstDrivePathToNextFreeDriveLetter(input_file_FQN, subst_finalpathcomponent_string, mode_string)
+SubstitutedDriveLetter = [];
+if (ispc)    
+    if ~exist('mode_string', 'var') || isempty(mode_string)
+        mode_string = '';
+    end
+    
+    if ~isempty(subst_finalpathcomponent_string)
+        subst_anchor_idx = strfind(input_file_FQN, subst_finalpathcomponent_string);
+        subst_anchor_string = input_file_FQN(1:(subst_anchor_idx(1) + length(subst_finalpathcomponent_string) - 1));
+    else
+        if isdir(input_file_FQN)
+            subst_anchor_string = input_file_FQN;
+        end
+    end
+    
+    PossibleDiveLetterList = {  'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',...
+                                'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'};
+      
+    for i_ProtoSubstitutedDriveLetter = 1 : length(PossibleDiveLetterList)
+        current_SubstitutedDriveLetter = [PossibleDiveLetterList{i_ProtoSubstitutedDriveLetter}, ':'];
+        [subst_status, subst_output] = system(['subst ', current_SubstitutedDriveLetter, ' ', subst_anchor_string]);
+        if (subst_status == 0)
+            % we found our candidate
+            SubstitutedDriveLetter = current_SubstitutedDriveLetter;
+            if (strcmp(mode_string, 'delete'))
+                [subst_status, subst_output] = system(['subst ', current_SubstitutedDriveLetter, ' /d']);
+            end
+            break
+        end       
+    end
+end
+
+    return
 end
