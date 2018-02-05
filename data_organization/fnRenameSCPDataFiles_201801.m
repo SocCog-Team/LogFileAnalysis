@@ -1036,7 +1036,7 @@ end
 
 if ~exist('n_lines', 'var') || isempty(n_lines)
     % unless otherwise requested only load the first 64 lines
-    n_lines = 64;
+    n_lines = 32;
 end
 
 session_start_time_HHMMSS_string = [];
@@ -1047,7 +1047,7 @@ if isempty(tmp_dir_struct)
     return
 end
 
-% textscan
+% textscan!
 log_fid = fopen(fullfile(in_path, tmp_dir_struct.name), 'r');
 tmp_data_list = textscan(log_fid, '%s', n_lines, 'Delimiter',{'\n','\b'});
 fclose(log_fid);
