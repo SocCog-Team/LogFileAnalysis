@@ -582,7 +582,9 @@ function [ current_processed_in_file_list ] = fnProcessTrackerLogs( current_sess
 % process the tracker log files
 % create the canonical fullfile(current_out_path, trackerlogfiles) sub
 % directory and place all trackerlogs that belong to that session there
-
+% TODO: if the experiment was started early but the subject not in the
+% set-up the triallog sessionID time will be too early (but the start time
+% in the header should be okay
 
 % overridable defaults
 if ~exist('input_name_match_regexp_list', 'var') || isempty(input_name_match_regexp_list)
@@ -601,7 +603,7 @@ end
 current_processed_in_file_list = {};
 % the pattern for the dir() used to collect the proto_tracker_logfiles
 trackerlog_file_dir_wildcard_string = '*racker*og*.*';
-
+current_session_path = current_in_path;
 
 % where to store the trackerlog files
 output_path = fullfile(current_out_path, output_subdirname);
@@ -613,6 +615,7 @@ end
 input_file_FQN_list = {};
 %output_file_FQN_list = {};
 
+trackerlog_sessionID_confirmed = {};
 
 % search for all trackerlog files in the known locations in order of ease:
 %   current_in_path/trackerlogfiles/${SESSION_ID_STRING}.TID_${TRACKER_ID_STRING}.trackerlog.[txt|txt.gz]
@@ -622,6 +625,7 @@ if isdir(current_trackerlog_subdir)
     for i_file_in_dir = 1 : length(tmp_file_list)
         if ~(tmp_file_list(i_file_in_dir).isdir)
             input_file_FQN_list{end + 1} = fullfile(current_trackerlog_subdir, tmp_file_list(i_file_in_dir).name);
+            trackerlog_sessionID_confirmed{end+1} = 1;
         end
     end
 end
@@ -633,6 +637,7 @@ if isdir(current_trackerlog_subdir)
     for i_file_in_dir = 1 : length(tmp_file_list)
         if ~(tmp_file_list(i_file_in_dir).isdir)
             input_file_FQN_list{end + 1} = fullfile(current_trackerlog_subdir, tmp_file_list(i_file_in_dir).name);
+            trackerlog_sessionID_confirmed{end+1} = 1;
         end
     end
 end
@@ -644,6 +649,7 @@ if isdir(current_trackerlog_subdir)
     for i_file_in_dir = 1 : length(tmp_file_list)
         if ~(tmp_file_list(i_file_in_dir).isdir)
             input_file_FQN_list{end + 1} = fullfile(current_trackerlog_subdir, tmp_file_list(i_file_in_dir).name);
+            trackerlog_sessionID_confirmed{end+1} = 0;
         end
     end
 end
@@ -656,6 +662,7 @@ tmp_file_list = dir(fullfile(current_trackerlog_subdir, trackerlog_file_dir_wild
 for i_file_in_dir = 1 : length(tmp_file_list)
     if ~(tmp_file_list(i_file_in_dir).isdir)
         input_file_FQN_list{end + 1} = fullfile(current_trackerlog_subdir, tmp_file_list(i_file_in_dir).name);
+        trackerlog_sessionID_confirmed{end+1} = 0;
     end
 end
 
@@ -667,6 +674,10 @@ for i_input_file_FQN = 1 : length(input_file_FQN_list)
     
     [current_input_path, current_input_name, current_input_ext] = fileparts(current_input_file_FQN);
     current_input_name_ext = [current_input_name, current_input_ext];
+    % if the input file name already contains the sessionID, believe it
+    if ~isempty(regexp(current_input_name_ext, ['^', current_session_id]))
+        trackerlog_sessionID_confirmed{i_input_file_FQN} = 1;
+    end
     
     
     for i_input_name_match_regexp = 1 : length(input_name_match_regexp_list)
@@ -681,9 +692,20 @@ for i_input_file_FQN = 1 : length(input_file_FQN_list)
             current_session_time_string = current_session_id(10:15);
             current_session_time_ms = 1000 * ((str2double(current_session_time_string(1:2)) * 60 * 60) + (str2double(current_session_time_string(3:4)) * 60) + (str2double(current_session_time_string(5:6))));
 
+%             % TODO: also look inside the triallog's header to get
+%             % eventIDE's idea about the start time
+%             % search for the triallog file in the ouput directory (so the name is less variable)
+%             current_triallog_session_start_time_string = fnExtractEventIDEStartTimeFromReport(output_path, [current_session_id, '*.triallog.txt'], '^Time:');
+%             if ~isempty(current_triallog_session_start_time_string)
+%                 current_triallog_session_start_time_ms = 1000 * ((str2double(current_triallog_session_start_time_string(1:2)) * 60 * 60) + (str2double(current_triallog_session_start_time_string(3:4)) * 60) + (str2double(current_triallog_session_start_time_string(5:6))));
+%                 current_session_time_ms = current_triallog_session_start_time_ms;
+%             end
+            
             % if the time difference from session time to trackerlog file
             % name time is less than a minute then assume a match
-            if (abs(current_trackerlog_info.time_ms/60000 - round(current_session_time_ms/60000)) <= 1)
+            % do not check if the sessionID of the trackrelogs was already
+            % confirmed bu other means
+            if (abs(current_trackerlog_info.time_ms/60000 - round(current_session_time_ms/60000)) <= 1) || trackerlog_sessionID_confirmed{i_input_file_FQN}
                 disp(['TrackerLog: ', current_input_name_ext, ' is matched to sessionID: ', current_session_id]);
                 out_extension = '.trackerlog.txt';
                 if (current_trackerlog_info.ext_is_gz)
@@ -814,12 +836,12 @@ function [ current_processed_in_file_list ] = fnProcessLeftovers( current_sessio
 
 % overridable defaults
 if ~exist('input_wildcard_string', 'var') || isempty(input_wildcard_string)
-    input_wildcard_string =  '*.*';
+    input_wildcard_string =  [current_session_id, '*.*'];
 end
 
 current_processed_in_file_list = {};
 % the pattern for the dir() used to collect the proto_tracker_logfiles
-eve_file_dir_wildcard_string = '*.*';
+session_file_dir_wildcard_string = '*.*';
 
 % where to store the trackerlog files
 output_path = fullfile(current_out_path);
@@ -1001,3 +1023,29 @@ end
 
     return
 end
+
+
+% function [ session_start_time_string ] = fnExtractEventIDEStartTimeFromReport( in_path, name_dir_wildcard, time_key_regexp, n_lines)
+% 
+% if ~exist(n_lines) || isempty(n_lines)
+%     % unless otherwise requested only load the first 64 lines
+%     n_lines = 64;
+% end
+% 
+% session_start_time_string = [];
+% % try to find the file to search:
+% tmp_dir_struct = dir(fullfile(in_path, name_dir_wildcard));
+% if isempty(tmp_dir_struct)
+%     % file not found, do nothing...
+%     return
+% end
+% 
+% % textscan
+% log_fid = fopen(fullfile(in_path, tmp_dir_struct.name), 'r');
+% tmp_data_list = textscan(log_fid, '%s', n_lines);
+% fclose(log_fid);
+% 
+% time_key_idx = regexp();
+% 
+% return
+% end
