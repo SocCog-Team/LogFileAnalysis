@@ -393,17 +393,17 @@ end
 
 % instead of trying to gzip a file twice, just copy/move it
 [in_path, in_name, in_ext] = fileparts(input_file_FQN);
-if (length(in_path) > 255)
+if (length(in_path) > 247)
     % with only one level of substs we can not actually deal with that so
-    % error out
-    error('Encountered input path > 255 characters, too long to currently handle...');
+    % error out, see https://msdn.microsoft.com/en-us/library/aa365247%28VS.85%29.aspx?f=255&MSPPError=-2147217396#maxpath
+    error('Encountered input path > 247 characters, too long to currently handle...');
 end
 
 [out_path, out_name, out_ext] = fileparts(output_file_FQN);
-if (length(out_path) > 255)
+if (length(out_path) > 247)
     % with only one level of substs we can not actually deal with that so
-    % error out
-    error('Encountered output path > 255 characters, too long to currently handle...');
+    % error out, see https://msdn.microsoft.com/en-us/library/aa365247%28VS.85%29.aspx?f=255&MSPPError=-2147217396#maxpath
+    error('Encountered output path > 247 characters, too long to currently handle...');
 end
 
 if strcmp(in_ext, '.gz')
