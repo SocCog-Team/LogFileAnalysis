@@ -692,14 +692,14 @@ for i_input_file_FQN = 1 : length(input_file_FQN_list)
             current_session_time_string = current_session_id(10:15);
             current_session_time_ms = 1000 * ((str2double(current_session_time_string(1:2)) * 60 * 60) + (str2double(current_session_time_string(3:4)) * 60) + (str2double(current_session_time_string(5:6))));
 
-%             % TODO: also look inside the triallog's header to get
-%             % eventIDE's idea about the start time
-%             % search for the triallog file in the ouput directory (so the name is less variable)
-%             current_triallog_session_start_time_string = fnExtractEventIDEStartTimeFromReport(output_path, [current_session_id, '*.triallog.txt'], '^Time:');
-%             if ~isempty(current_triallog_session_start_time_string)
-%                 current_triallog_session_start_time_ms = 1000 * ((str2double(current_triallog_session_start_time_string(1:2)) * 60 * 60) + (str2double(current_triallog_session_start_time_string(3:4)) * 60) + (str2double(current_triallog_session_start_time_string(5:6))));
-%                 current_session_time_ms = current_triallog_session_start_time_ms;
-%             end
+            % TODO: also look inside the triallog's header to get
+            % eventIDE's idea about the start time
+            % search for the triallog file in the ouput directory (so the name is less variable)
+            current_triallog_session_start_time_string = fnExtractEventIDEStartTimeFromReport(current_out_path, [current_session_id, '*.triallog.txt']);
+            if ~isempty(current_triallog_session_start_time_string)
+                current_triallog_session_start_time_ms = 1000 * ((str2double(current_triallog_session_start_time_string(1:2)) * 60 * 60) + (str2double(current_triallog_session_start_time_string(3:4)) * 60) + (str2double(current_triallog_session_start_time_string(5:6))));
+                current_session_time_ms = current_triallog_session_start_time_ms;
+            end
             
             % if the time difference from session time to trackerlog file
             % name time is less than a minute then assume a match
@@ -1025,27 +1025,55 @@ end
 end
 
 
-% function [ session_start_time_string ] = fnExtractEventIDEStartTimeFromReport( in_path, name_dir_wildcard, time_key_regexp, n_lines)
-% 
-% if ~exist(n_lines) || isempty(n_lines)
-%     % unless otherwise requested only load the first 64 lines
-%     n_lines = 64;
-% end
-% 
-% session_start_time_string = [];
-% % try to find the file to search:
-% tmp_dir_struct = dir(fullfile(in_path, name_dir_wildcard));
-% if isempty(tmp_dir_struct)
-%     % file not found, do nothing...
-%     return
-% end
-% 
-% % textscan
-% log_fid = fopen(fullfile(in_path, tmp_dir_struct.name), 'r');
-% tmp_data_list = textscan(log_fid, '%s', n_lines);
-% fclose(log_fid);
-% 
-% time_key_idx = regexp();
-% 
-% return
-% end
+function [ session_start_time_HHMMSS_string ] = fnExtractEventIDEStartTimeFromReport( in_path, name_dir_wildcard, time_key_regexp, n_lines)
+% This uses detailled intimate knowledge about event ide tril log files it
+% is in no way generic, use carefully
+
+if ~exist('time_key_regexp', 'var') || isempty(time_key_regexp)
+    % unless otherwise requested only load the first 64 lines
+    time_key_regexp = '^Time:';
+end
+
+if ~exist('n_lines', 'var') || isempty(n_lines)
+    % unless otherwise requested only load the first 64 lines
+    n_lines = 64;
+end
+
+session_start_time_HHMMSS_string = [];
+% try to find the file to search:
+tmp_dir_struct = dir(fullfile(in_path, name_dir_wildcard));
+if isempty(tmp_dir_struct)
+    % file not found, do nothing...
+    return
+end
+
+% textscan
+log_fid = fopen(fullfile(in_path, tmp_dir_struct.name), 'r');
+tmp_data_list = textscan(log_fid, '%s', n_lines, 'Delimiter',{'\n','\b'});
+fclose(log_fid);
+tmp_data_list = tmp_data_list{1};
+
+for i_line = 1 : n_lines
+    current_line = tmp_data_list{i_line};
+    time_key_idx  = regexp(current_line, time_key_regexp);
+    if ~isempty(time_key_idx)
+        TimeString = strtrim(current_line((time_key_idx+length(time_key_regexp)-1):end));
+        % 'Time:  3:25 PM' -> '3:25 PM'
+        if strcmp(TimeString(end), 'M')
+            colon_idx = strfind(TimeString, ':');
+            hours = str2num(TimeString(1:colon_idx-1));
+            if strcmp(TimeString(end-1:end), 'PM')
+                hours = hours + 12;
+            end
+            minutes = str2num(TimeString(colon_idx+1:colon_idx+3));   
+            session_start_time_HHMMSS_string = [num2str(hours, '%02d'), num2str(minutes, '%02d'), '00'];
+        else
+            error('Not sure what to do the time string does not seem to be well formed...');
+        end
+        break
+    end
+end
+
+    
+return
+end
