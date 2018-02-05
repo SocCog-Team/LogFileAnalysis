@@ -393,6 +393,19 @@ end
 
 % instead of trying to gzip a file twice, just copy/move it
 [in_path, in_name, in_ext] = fileparts(input_file_FQN);
+if (length(in_path) > 255)
+    % with only one level of substs we can not actually deal with that so
+    % error out
+    error('Encountered input path > 255 characters, too long to currently handle...');
+end
+
+[out_path, out_name, out_ext] = fileparts(output_file_FQN);
+if (length(out_path) > 255)
+    % with only one level of substs we can not actually deal with that so
+    % error out
+    error('Encountered output path > 255 characters, too long to currently handle...');
+end
+
 if strcmp(in_ext, '.gz')
     switch lower(method_string)
         case {'gzip', 'gzip_copy'}
@@ -431,7 +444,7 @@ if (ispc) && (status == 0)
             tmp_input_file_FQN = input_file_FQN;
         end
         
-        [out_path, out_name, out_ext] = fileparts(output_file_FQN);
+        %[out_path, out_name, out_ext] = fileparts(output_file_FQN);
         if ~isempty(output_subst_drive_letter) && (length(output_file_FQN) > 260)
             disp(['Substituting ', output_subst_drive_letter, ' for ', out_path]);
             [subst_status, subst_output] = system(['subst ', output_subst_drive_letter, ' ', out_path]);
