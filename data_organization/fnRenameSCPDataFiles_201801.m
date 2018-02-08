@@ -875,8 +875,11 @@ for i_input_file_FQN = 1 : length(input_file_FQN_list)
     if ismember(current_input_name_ext, {'.', '..'})
         continue
     end
+    
     % test whether this is a TrackerLog, as all matching trackerlogs should
-    % be hanbdled already move this into its own directory structure
+    % be handled already move this into its own directory structure
+    % these mnost likely belong to triallogs that were not saved and hence
+    % could be ignored
     if (regexp(current_input_name_ext, '^TrackerLog--'))
         % all trackerlogs should already been processed, so put these into a
         % dedicated directory just as a safety measure
