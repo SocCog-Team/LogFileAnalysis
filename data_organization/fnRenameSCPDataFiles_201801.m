@@ -695,7 +695,14 @@ for i_input_file_FQN = 1 : length(input_file_FQN_list)
             % TODO: also look inside the triallog's header to get
             % eventIDE's idea about the start time
             % search for the triallog file in the ouput directory (so the name is less variable)
-            current_triallog_session_start_time_string = fnExtractEventIDEStartTimeFromReport(current_out_path, [current_session_id, '*.triallog.txt']);
+            if ~strcmp(method_string, 'ignore')
+                current_triallog_session_start_time_string = fnExtractEventIDEStartTimeFromReport(current_out_path, [current_session_id, '*.triallog.txt']);
+            else
+                current_triallog_session_start_time_string = fnExtractEventIDEStartTimeFromReport(current_in_path, [current_session_id, '*.triallog.txt']);
+                if isempty(current_triallog_session_start_time_string)
+                    current_triallog_session_start_time_string = fnExtractEventIDEStartTimeFromReport(current_in_path, [current_session_id, '.log']);
+                end
+            end
             if ~isempty(current_triallog_session_start_time_string)
                 current_triallog_session_start_time_ms = 1000 * ((str2double(current_triallog_session_start_time_string(1:2)) * 60 * 60) + (str2double(current_triallog_session_start_time_string(3:4)) * 60) + (str2double(current_triallog_session_start_time_string(5:6))));
                 current_session_time_ms = current_triallog_session_start_time_ms;
@@ -853,18 +860,36 @@ end
 input_file_FQN_list = {};
 %output_file_FQN_list = {};
 
-
+% this is a bit rough, but should catch all leftovers
 input_file_FQN_list = find_all_files(current_in_path, input_wildcard_string, 0);
 
 
 % do the actual file processing
 for i_input_file_FQN = 1 : length(input_file_FQN_list)
     current_input_file_FQN = input_file_FQN_list{i_input_file_FQN};
-    
     %current_output_file_FQN = output_file_FQN_list{i_input_file_FQN};
     
     [current_input_path, current_input_name, current_input_ext] = fileparts(current_input_file_FQN);
     current_input_name_ext = [current_input_name, current_input_ext];
+    % ignore . and .. dir results
+    if ismember(current_input_name_ext, {'.', '..'})
+        continue
+    end
+    % test whether this is a TrackerLog, as all matching trackerlogs should
+    % be hanbdled already move this into its own directory structure
+    if (regexp(current_input_name_ext, '^TrackerLog--'))
+        % all trackerlogs should already been processed, so put these into a
+        % dedicated directory just as a safety measure
+        current_trackerlog_info = fnParseEventideTracklogName(current_input_name_ext);
+        % now modify the output path
+        setup_name_start_idx = strfind(current_session_id, '.SCP_');
+        setup_string = current_session_id(setup_name_start_idx+1: end);
+        proto_session_id = [current_trackerlog_info.session_time_string, '.A_Name.B_Name.', setup_string];
+        orig_output_path = output_path;
+        output_path = strrep(output_path, [filesep, 'SESSIONLOGS', filesep], [filesep, 'LEFTOVERS', filesep]);
+        output_path = strrep(output_path, [filesep, current_session_id, '.sessiondir'], [filesep, proto_session_id, '.sessiondir']);       
+    end
+    
     
     % keep existing sub directory unless they are empty.
     current_output_path = output_path;
@@ -877,7 +902,7 @@ for i_input_file_FQN = 1 : length(input_file_FQN_list)
         end
         current_output_path = fullfile(current_output_path, current_in_sub_dir);
         % does the output directory already exist?
-        if isempty(dir(current_output_path))
+        if (length(dir(current_output_path)) == 2)
             % if there are actual entries in the input_dir create the
             % output_dir
             if (length(dir(current_input_path)) > 2)
