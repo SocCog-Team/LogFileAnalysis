@@ -406,6 +406,12 @@ if (length(out_path) > 247)
     error('Encountered output path > 247 characters, too long to currently handle...');
 end
 
+
+% make sure the output path exists
+if ~strcmp(method_string, 'ignore') && ~isdir(out_path)
+    mkdir(out_path);
+end
+
 if strcmp(in_ext, '.gz')
     switch lower(method_string)
         case {'gzip', 'gzip_copy'}
@@ -972,8 +978,13 @@ if (regexp(trackerlog_file_name, '^TrackerLog--'))
     else
         tracker_info.sessionID = [];
         tracker_info.trackerID = trackerlog_file_name(InfoSeparatorIdx(1)+length(eventIDEInfoSeparatorString): InfoSeparatorIdx(2)-1);
-        tracker_info.yyyymmdd_string = trackerlog_file_name(InfoSeparatorIdx(2)+length(eventIDEInfoSeparatorString): InfoSeparatorIdx(3)-1);
-        tracker_info.yyyymmdd_string(strfind(tracker_info.yyyymmdd_string, '-')) = [];
+        % eventide reports date as YYYY--DD--MM, so undo this
+        tmp_yyyyddmm_string = trackerlog_file_name(InfoSeparatorIdx(2)+length(eventIDEInfoSeparatorString): InfoSeparatorIdx(3)-1);
+        tmp_yyyyddmm_string(strfind(tmp_yyyyddmm_string, '-')) = [];
+        tracker_info.yyyymmdd_string = [tmp_yyyyddmm_string(1:4), tmp_yyyyddmm_string(7:8), tmp_yyyyddmm_string(5:6)];
+        %tracker_info.yyyymmdd_string = trackerlog_file_name(InfoSeparatorIdx(2)+length(eventIDEInfoSeparatorString): InfoSeparatorIdx(3)-1);
+        %tracker_info.yyyymmdd_string(strfind(tracker_info.yyyymmdd_string, '-')) = [];
+        
         dotIdx = strfind(trackerlog_file_name, '.');
         tracker_info.hhmmss_string = [trackerlog_file_name(InfoSeparatorIdx(3)+length(eventIDEInfoSeparatorString): dotIdx-1), '-00'];
         tracker_info.hhmmss_string(strfind(tracker_info.hhmmss_string, '-')) = [];
