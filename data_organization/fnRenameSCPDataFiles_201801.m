@@ -974,7 +974,7 @@ if (regexp(trackerlog_file_name, '^TrackerLog--'))
     eventIDEInfoSeparatorString = '--';
     InfoSeparatorIdx = strfind(trackerlog_file_name, eventIDEInfoSeparatorString);
     if length(InfoSeparatorIdx) ~= 3
-        error(['The following trackerlog mot recognized as proper eventIDE tracker name: ', trackerlog_file_name]);
+        error(['The following trackerlog not recognized as proper eventIDE tracker name: ', trackerlog_file_name]);
     else
         tracker_info.sessionID = [];
         tracker_info.trackerID = trackerlog_file_name(InfoSeparatorIdx(1)+length(eventIDEInfoSeparatorString): InfoSeparatorIdx(2)-1);
@@ -1101,7 +1101,7 @@ for i_line = 1 : n_lines
         if strcmp(TimeString(end), 'M')
             colon_idx = strfind(TimeString, ':');
             hours = str2num(TimeString(1:colon_idx-1));
-            if strcmp(TimeString(end-1:end), 'PM')
+            if strcmp(TimeString(end-1:end), 'PM') && ~strcmp(TimeString(1:2), '12')
                 hours = hours + 12;
             end
             minutes = str2num(TimeString(colon_idx+1:colon_idx+3));   
