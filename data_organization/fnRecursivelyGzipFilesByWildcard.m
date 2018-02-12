@@ -25,7 +25,7 @@ if ~exist('search_root', 'var') || isempty(search_root)
 end
  
 
-method_string = 'gzip_move'; % 'gzip_move', 'ignore'
+method_string = 'gzip_move_optimistic'; % 'gzip_move', 'ignore', 'gzip_move_optimistic'
 
 
 % find all files in the tree based on searc_root that match the dir_wildcard_string
