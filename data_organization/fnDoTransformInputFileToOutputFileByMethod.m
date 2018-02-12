@@ -41,6 +41,7 @@ switch lower(method_string)
         gzip(input_file_FQN, fileparts(output_file_FQN));
         if ~exist([output_file_FQN, '.gz'], 'file') || isdir([output_file_FQN, '.gz'])
             out_struct.status = 0;
+            error(['Failure while trying to gzip ', input_file_FQN]);
         end
         delete(input_file_FQN);
     otherwise
