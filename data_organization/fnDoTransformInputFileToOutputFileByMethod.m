@@ -44,6 +44,19 @@ switch lower(method_string)
             error(['Failure while trying to gzip ', input_file_FQN]);
         end
         delete(input_file_FQN);
+    case {'gzip_move_optimistic'}
+        disp(['Gzipping : ', input_file_FQN]);
+        disp(['(move) to: ', [output_file_FQN, '.gz']]);
+        if ~exist([output_file_FQN, '.gz'], 'file') || isdir([output_file_FQN, '.gz'])
+            gzip(input_file_FQN, fileparts(output_file_FQN));
+        else
+            disp([output_file_FQN, '.gz exists already, keeping the existing archive.']);
+        end
+        if ~exist([output_file_FQN, '.gz'], 'file') || isdir([output_file_FQN, '.gz'])
+            out_struct.status = 0;
+            error(['Failure while trying to gzip ', input_file_FQN]);
+        end
+        delete(input_file_FQN);
     otherwise
         error(['Processing method: ', method_string, ' not handled yet...']);
 end
