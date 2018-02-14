@@ -144,6 +144,17 @@ while (~feof(ReportLog_fd))
 	
 	% info and header parts are whitespace separated
 	[CurrentTokenWhiteSpace, remainWhiteSpace] = strtok(current_line);
+    
+    if ~isempty(strfind(CurrentTokenWhiteSpace, '********************')) && (length(CurrentTokenWhiteSpace) ~= length('********************'))
+        disp(['Encountered unexpected eventIDE header marker: ', CurrentTokenWhiteSpace]);
+        % 20180112T124424.A_Magnus.B_Flaffus.SCP_01.triallog.txt
+        % starts with a weird multi character sequence, ignore that
+        if ~isempty(regexp(CurrentTokenWhiteSpace, '\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*$', 'once'))
+            CurrentTokenWhiteSpace = '********************';
+            disp(['Corrected to: ', CurrentTokenWhiteSpace]);
+        end
+    end
+    
 	switch (CurrentTokenWhiteSpace)
 		case '********************'
 			% start of IDinfo
