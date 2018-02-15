@@ -1106,6 +1106,9 @@ for i_line = 1 : n_lines
             end
             minutes = str2num(TimeString(colon_idx+1:colon_idx+3));   
             session_start_time_HHMMSS_string = [num2str(hours, '%02d'), num2str(minutes, '%02d'), '00'];
+        elseif (~isempty(regexp(TimeString, '[0-9]*:[0-9][0-9]$'))
+            TimeString(strfind(TimeString, ':')) = [];
+            session_start_time_HHMMSS_string = [TimeString, '00'];
         else
             error('Not sure what to do the time string does not seem to be well formed...');
         end
