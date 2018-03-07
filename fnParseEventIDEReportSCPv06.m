@@ -35,7 +35,7 @@ mfilepath = fileparts(fq_mfilename);
 calling_dir = pwd;
 
 save_matfile = 1;
-version_string = '.v011';	% we append this to the filename to figure out whether a report file should be re-parsed... this needs to be updated whenthe parser changes
+version_string = '.v012';	% we append this to the filename to figure out whether a report file should be re-parsed... this needs to be updated whenthe parser changes
 
 suffix_string = '';
 test_timing = 0;
@@ -312,10 +312,16 @@ data_struct = fn_handle_data_struct('add_columns', data_struct, NewDataColumn, {
 % also add reward information to the trial table
 % for this we nned to parse the Reward_struct and create columns to add to
 % the data table
+% TODO: what to do if column already exists?
 if ~isempty(fieldnames(Reward_struct))
 	RewardPerTrialInfo_struct = fnExtractPerTrialRewardInfo(Reward_struct, size(data_struct.data, 1));
 	data_struct = fn_handle_data_struct('add_columns', data_struct, RewardPerTrialInfo_struct.data, RewardPerTrialInfo_struct.header);
 end
+
+% now calculate some columns for convenience of further-down consumers
+data_struct = fn_process_data_struct_by_keyword(data_struct, 'InitialFixationAdjReleaseTime_ms');
+
+
 
 % now try to add columns to the main data table, for enum indices
 % (zero-based),
@@ -1308,6 +1314,33 @@ if ~isequal(all_row_idx, TrialNumberList) && (TrialNumberList(1) ~= 0)
     out_data_struct.first_empty_row_idx = size(out_data_struct.data, 1) + 1;
 else
     out_data_struct = in_data_struct;
+end
+
+return
+end
+
+function [data_struct] = fn_process_data_struct_by_keyword(data_struct, process_keyword)
+global data_struct
+
+switch process_keyword
+    case 'InitialFixationAdjReleaseTime_ms'
+        % for eves before 20180307, InitialFixationAdjReleaseTime_ms does
+        % not exist, but InitialFixationReleaseTime_ms is
+        % TouchROIAllowedReleases_ms larger than the real releases, so
+        % correct these
+        % pure movie triallogs contain not a single
+        if  (size(data_struct.data, 1) > 0) && ~isfield(data_struct.cn, 'A_InitialFixationAdjReleaseTime_ms') && ~isfield(data_struct.cn, 'B_InitialFixationAdjReleaseTime_ms')
+            if (isfield(data_struct.cn, 'A_InitialFixationReleaseTime_ms') && isfield(data_struct.cn, 'B_InitialFixationReleaseTime_ms') && isfield(data_struct.cn, 'A_TouchROIAllowedReleases_ms') && isfield(data_struct.cn, 'B_TouchROIAllowedReleases_ms'))
+                
+                tmp_A_InitialFixationAdjReleaseTime_ms = data_struct.data(:, data_struct.cn.A_InitialFixationReleaseTime_ms) - data_struct.data(:, data_struct.cn.A_TouchROIAllowedReleases_ms);
+                tmp_B_InitialFixationAdjReleaseTime_ms = data_struct.data(:, data_struct.cn.B_InitialFixationReleaseTime_ms) - data_struct.data(:, data_struct.cn.B_TouchROIAllowedReleases_ms);
+                % add the newly calculated columns, but only if they do not
+                % exist already
+                data_struct = fn_handle_data_struct('add_columns', data_struct, [tmp_A_InitialFixationAdjReleaseTime_ms, tmp_B_InitialFixationAdjReleaseTime_ms], {'A_InitialFixationAdjReleaseTime_ms', 'B_InitialFixationAdjReleaseTime_ms'});
+            end
+        end
+    otherwise
+        error(['Unhandled process_keyword encountered: ', process_keyword]);
 end
 
 return
