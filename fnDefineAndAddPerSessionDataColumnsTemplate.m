@@ -37,7 +37,7 @@ c_cols = size(data_struct.data, 2);
 
 
 % EDIT START: FILL local_header and local_data here
-local_header = {'paper_between_AB', 'A_visible', 'B_visible'};
+local_header = {'paper_between_AB', 'A_invisible', 'B_invisible'};
 
 local_data = zeros([n_trials length(local_header)]);
 
