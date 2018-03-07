@@ -1327,7 +1327,8 @@ switch process_keyword
         % for eves before 20180307, InitialFixationAdjReleaseTime_ms does
         % not exist, but InitialFixationReleaseTime_ms is
         % TouchROIAllowedReleases_ms larger than the real releases, so
-        % correct these
+        % correct these, BUT this only holds for ABORTED trials, so not
+        % that important
         % pure movie triallogs contain not a single
         if  (size(data_struct.data, 1) > 0) && ~isfield(data_struct.cn, 'A_InitialFixationAdjReleaseTime_ms') && ~isfield(data_struct.cn, 'B_InitialFixationAdjReleaseTime_ms')
             if (isfield(data_struct.cn, 'A_InitialFixationReleaseTime_ms') && isfield(data_struct.cn, 'B_InitialFixationReleaseTime_ms') && isfield(data_struct.cn, 'A_TouchROIAllowedReleases_ms') && isfield(data_struct.cn, 'B_TouchROIAllowedReleases_ms'))
