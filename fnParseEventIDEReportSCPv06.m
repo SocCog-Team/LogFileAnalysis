@@ -1320,6 +1320,7 @@ return
 end
 
 function [data_struct] = fn_process_data_struct_by_keyword(data_struct, process_keyword)
+
 global data_struct
 
 switch process_keyword
@@ -1329,12 +1330,22 @@ switch process_keyword
         % TouchROIAllowedReleases_ms larger than the real releases, so
         % correct these, BUT this only holds for ABORTED trials, so not
         % that important
-        % pure movie triallogs contain not a single
+        % pure movie triallogs contain not a single trial entry
         if  (size(data_struct.data, 1) > 0) && ~isfield(data_struct.cn, 'A_InitialFixationAdjReleaseTime_ms') && ~isfield(data_struct.cn, 'B_InitialFixationAdjReleaseTime_ms')
             if (isfield(data_struct.cn, 'A_InitialFixationReleaseTime_ms') && isfield(data_struct.cn, 'B_InitialFixationReleaseTime_ms') && isfield(data_struct.cn, 'A_TouchROIAllowedReleases_ms') && isfield(data_struct.cn, 'B_TouchROIAllowedReleases_ms'))
                 
-                tmp_A_InitialFixationAdjReleaseTime_ms = data_struct.data(:, data_struct.cn.A_InitialFixationReleaseTime_ms) - data_struct.data(:, data_struct.cn.A_TouchROIAllowedReleases_ms);
-                tmp_B_InitialFixationAdjReleaseTime_ms = data_struct.data(:, data_struct.cn.B_InitialFixationReleaseTime_ms) - data_struct.data(:, data_struct.cn.B_TouchROIAllowedReleases_ms);
+                % since only aborted trials are affected, initialize with
+                % the proper releasr time stamps.
+                tmp_A_InitialFixationAdjReleaseTime_ms = data_struct.data(:, data_struct.cn.A_InitialFixationReleaseTime_ms);
+                tmp_B_InitialFixationAdjReleaseTime_ms = data_struct.data(:, data_struct.cn.B_InitialFixationReleaseTime_ms);
+
+                % find aborted trials, that actually do carry a non-zero
+                % timestamp (zero denotes that the initial fixation target was never released/or acquired at all)
+                A_aborted_trials_idx = find(data_struct.data(:, data_struct.cn.A_AbortReason) ~= 0 & (data_struct.data(:, data_struct.cn.A_InitialFixationReleaseTime_ms) ~= 0));
+                B_aborted_trials_idx = find(data_struct.data(:, data_struct.cn.B_AbortReason) ~= 0 & (data_struct.data(:, data_struct.cn.B_InitialFixationReleaseTime_ms) ~= 0));
+                
+                tmp_A_InitialFixationAdjReleaseTime_ms(A_aborted_trials_idx) = data_struct.data(A_aborted_trials_idx, data_struct.cn.A_InitialFixationReleaseTime_ms) - data_struct.data(A_aborted_trials_idx, data_struct.cn.A_TouchROIAllowedReleases_ms);
+                tmp_B_InitialFixationAdjReleaseTime_ms(A_aborted_trials_idx) = data_struct.data(A_aborted_trials_idx, data_struct.cn.B_InitialFixationReleaseTime_ms) - data_struct.data(A_aborted_trials_idx, data_struct.cn.B_TouchROIAllowedReleases_ms);
                 % add the newly calculated columns, but only if they do not
                 % exist already
                 data_struct = fn_handle_data_struct('add_columns', data_struct, [tmp_A_InitialFixationAdjReleaseTime_ms, tmp_B_InitialFixationAdjReleaseTime_ms], {'A_InitialFixationAdjReleaseTime_ms', 'B_InitialFixationAdjReleaseTime_ms'});
