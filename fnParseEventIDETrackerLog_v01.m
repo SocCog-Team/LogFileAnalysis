@@ -1,4 +1,4 @@
-function [ data_struct ] = fnParseEventIDETrackerLog_v01( TrackerLog_FQN, column_separator, force_number_of_columns )
+function [ data_struct ] = fnParseEventIDETrackerLog_v01( TrackerLog_FQN, column_separator, force_number_of_columns, forced_header_string)
 %PARSE_PQLABTRACKER Summary of this function goes here
 % Parse EventIDE tracker element style report files:
 %   TrackerLog_FQN: the fully qualified name of the tracker log
@@ -31,6 +31,8 @@ function [ data_struct ] = fnParseEventIDETrackerLog_v01( TrackerLog_FQN, column
 %   before the user field is written to (the tracker starts before time 0)
 %       Fix this by adding the missing separators to get to the correct
 %       coumn number
+%   allow to pass a header string to allow easy expansion of Userfield
+%   multiplexed columns, this will partially override force_number_of_columns
 
 
 global data_struct;
@@ -42,7 +44,7 @@ fq_mfilename = mfilename('fullpath');
 mfilepath = fileparts(fq_mfilename);
 
 
-version_string = '.v002';	% we append this to the filename to figure out whether a report file should be re-parsed... this needs to be updated whenthe parser changes
+version_string = '.v003';	% we append this to the filename to figure out whether a report file should be re-parsed... this needs to be updated whenthe parser changes
 
 % as long as the UserFields proxy variable of a tracker element is not written it is empty,
 % hence in the log it appears as ";;" at the position of the UserField
@@ -114,9 +116,14 @@ if (~exist('column_separator', 'var')) || isempty(column_separator)
     column_separator = ';';
 end
 
-if ~ exist('force_number_of_columns', 'var')
+if ~exist('force_number_of_columns', 'var')
     force_number_of_columns = [];
 end
+
+if ~exist('forced_header_string', 'var')
+    forced_header_string = [];
+end
+
 
 % open the file
 TrackerLog_fd = fopen(TrackerLog_FQN, 'r');
@@ -128,9 +135,11 @@ info.logfile_FQN = TrackerLog_FQN;
 info.hostname = strtrim(host_name);
 
 % parse the informative header part
+info_header_line_list = {};
 info_header_parsed = 0;
 while (~info_header_parsed)
     current_line = fgetl(TrackerLog_fd);
+    info_header_line_list{end+1} = current_line;
     current_line_number = current_line_number + 1;
     [token, remain] = strtok(current_line, ':');
     found_header_line = 0;
@@ -157,12 +166,12 @@ end
 % NOTE we assume the string 'EventIDE TimeStamp' to be part of the LogHeader bot not
 % the data lines
 if ~isempty(strfind(current_line, 'EventIDE TimeStamp'))
-    [header, LogHeader_list, column_type_list, column_type_string] = process_LogHeader(current_line, column_separator, force_number_of_columns, 1);
+    [header, LogHeader_list, column_type_list, column_type_string] = process_LogHeader(current_line, column_separator, force_number_of_columns, forced_header_string, 1);
     info.LogHeader = LogHeader_list;
     
     % for fast parsing we want not expand the GLM Coefficients just yet for
     % the column_type_string
-    [tmp_fast.header, tmp_fast.LogHeader_list, tmp_fast.column_type_list, tmp_fast.column_type_string] = process_LogHeader(current_line, column_separator, force_number_of_columns, 0);
+    [tmp_fast.header, tmp_fast.LogHeader_list, tmp_fast.column_type_list, tmp_fast.column_type_string] = process_LogHeader(current_line, column_separator, force_number_of_columns, forced_header_string, 0);
     
     % create the data structure
     data_struct = fn_handle_data_struct('create', header);
@@ -171,6 +180,10 @@ if ~isempty(strfind(current_line, 'EventIDE TimeStamp'))
     data_start_offset = ftell(TrackerLog_fd);
     current_line = fgetl(TrackerLog_fd); % we need this for the next section where we want to start with a loaded log line
     current_line_number = current_line_number + 1;
+    % if a modified header exists, store it for the fixed file
+    if ~isempty(forced_header_string)
+        info_header_line_list{end} = forced_header_string;
+    end
 end
 data_start_line = current_line_number;
 
@@ -196,6 +209,10 @@ info.replace_coma_by_dot = replace_coma_by_dot;
 if (fixup_userfield_columns == 2) && (exist(TmpTrackerLog_FQN, 'file') ~= 2)
     disp('Checking each line for the correct number of columns; in case of missing columns add empty columns (might take a while...)');
     FixedTrackerLog_fd = fopen(TmpTrackerLog_FQN, 'w');
+    
+    for i_header_line = 1 : length(info_header_line_list)
+        fprintf(FixedTrackerLog_fd, '%s\r\n', info_header_line_list{i_header_line});
+    end
     
     % just skip over the header and start with the first data line
     fseek(TrackerLog_fd, data_start_offset, 'bof');
@@ -234,7 +251,10 @@ if (fixup_userfield_columns == 2) && (exist(TmpTrackerLog_FQN, 'file') ~= 2)
     fclose(FixedTrackerLog_fd);
     fclose(TrackerLog_fd);
     TrackerLog_fd = fopen(TmpTrackerLog_FQN, 'r');
-    tmpToc = toc(timestamps.(mfilename).start);
+    
+    % just skip over the header and start with the first data line
+    fseek(TrackerLog_fd, data_start_offset, 'bof');    tmpToc = toc(timestamps.(mfilename).start);
+    
     disp(['Trackerlog fix-ups took: ', num2str(tmpToc), ' seconds (', num2str(floor(tmpToc / 60), '%3.0f'),' minutes, ', num2str(tmpToc - (60 * floor(tmpToc / 60))),' seconds)']);
     
     if ismember(add_method, {'add_row_to_global_struct', 'add_row'})
@@ -319,7 +339,7 @@ switch add_method
         end
     case 'textscan'        
         if (exist(TmpTrackerLog_FQN, 'file') == 2)
-            TrackerLogCell = textscan(TrackerLog_fd, tmp_fast.column_type_string, 'Delimiter', column_separator);
+            TrackerLogCell = textscan(TrackerLog_fd, tmp_fast.column_type_string, 'Delimiter', column_separator, 'HeaderLines', length(info_header_line_list));
             tmpToc = toc(timestamps.(mfilename).start);
             disp(['Trackerlog textscan took: ', num2str(tmpToc), ' seconds (', num2str(floor(tmpToc / 60), '%3.0f'),' minutes, ', num2str(tmpToc - (60 * floor(tmpToc / 60))),' seconds)']);
             data_struct = fnConvertTextscanOutputToDataStruct(TrackerLogCell, tmp_fast.header, tmp_fast.column_type_list, expand_GLM_coefficients, replace_coma_by_dot, OutOfBoundsValue);
@@ -355,7 +375,7 @@ end
 
 
 
-function 	[ header, LogHeader_list, column_type_list, column_type_string ] = process_LogHeader( LogHeader_line, column_separator, number_of_data_columns, expand_GLMCoefficientsString)
+function 	[ header, LogHeader_list, column_type_list, column_type_string ] = process_LogHeader( LogHeader_line, column_separator, number_of_data_columns, forced_header_string, expand_GLMCoefficientsString)
 % LogHeader found, so parse it
 % special field names:
 % string:	'Current Event', 'Paradigm', 'DebugInfo'
@@ -370,10 +390,17 @@ if ~exist('expand_GLMCoefficientsString', 'var') || isempty(expand_GLMCoefficien
     expand_GLMCoefficientsString = 0;
 end
 
+if ~exist('forced_header_string', 'var') || isempty(forced_header_string)
+    forced_header_string = [];
+else
+    LogHeader_line = forced_header_string;
+end
+
 
 % find the protonumber of columns from the header
 Separator_idx = strfind(LogHeader_line, column_separator);
 number_orig_header_columns = length(Separator_idx);
+
 
 % since we expand the GLM Coefficients, account for that in the
 % number_of_columns
