@@ -33,6 +33,8 @@ function [ data_struct ] = fnParseEventIDETrackerLog_v01( TrackerLog_FQN, column
 %       coumn number
 %   allow to pass a header string to allow easy expansion of Userfield
 %   multiplexed columns, this will partially override force_number_of_columns
+%   handle gzipped trackerlogfiles by automatically use gunzip to extract
+%   them, also optinally conserve the extracted trackerlog.txt version.
 
 
 global data_struct;
@@ -44,7 +46,7 @@ fq_mfilename = mfilename('fullpath');
 mfilepath = fileparts(fq_mfilename);
 
 
-version_string = '.v003';	% we append this to the filename to figure out whether a report file should be re-parsed... this needs to be updated whenthe parser changes
+version_string = '.v004';	% we append this to the filename to figure out whether a report file should be re-parsed... this needs to be updated whenthe parser changes
 
 % as long as the UserFields proxy variable of a tracker element is not written it is empty,
 % hence in the log it appears as ";;" at the position of the UserField
@@ -52,6 +54,7 @@ version_string = '.v003';	% we append this to the filename to figure out whether
 % names. to fix this up find all lines with too few columns and add the
 % missing ones
 
+delete_txt_versions_of_gzip = 1; % delete the extracted txt file versions of gzipped ones to save space
 fixup_userfield_columns = 2;
 delete_fixed_trackerlog = 0;    %TODO instead clone a header into the fixed data file, zip the original under a new name and save the fixed as the "normal" tracker log file
 expand_GLM_coefficients = 1;   
@@ -102,6 +105,26 @@ if (test_timing)
     save_matfile = 1;
 end
 
+% check if the requested files exists at all
+TrackerLog_FQN_dirstruct = dir(TrackerLog_FQN);
+if (isempty(TrackerLog_FQN_dirstruct))
+    disp(['File not found: ', TrackerLog_FQN]);
+    return
+end
+    
+% check for gzipped file
+logfile_is_gzipped = 0;
+[orig_TrackerLog_path, orig_TrackerLog_name, orig_TrackerLog_ext] = fileparts(TrackerLog_FQN);
+if strcmp(orig_TrackerLog_ext, '.gz')
+    logfile_is_gzipped = 1;
+    gzip_TrackerLog_FQN = TrackerLog_FQN;
+    TrackerLog_FQN = fullfile(orig_TrackerLog_path, orig_TrackerLog_name);
+    [TrackerLog_Dir, TrackerLog_Name] = fileparts(TrackerLog_FQN);
+    % found a gziped file, now uncompress
+    disp(['Current trackerlog file: ', gzip_TrackerLog_FQN]);
+    disp(['Gunzipping the compressed trackerlog file, might take a while...']);
+    gunzip(gzip_TrackerLog_FQN);
+end
 
 disp(TrackerLog_FQN);
 TmpTrackerLog_FQN = [TrackerLog_FQN, '.Fixed.txt'];
@@ -352,6 +375,7 @@ fclose(TrackerLog_fd);
 
 % delete the temporary fixed up tracker log file?
 if (delete_fixed_trackerlog) && (exist(TmpTrackerLog_FQN, 'file') == 2)
+    disp(['Deleting: ', TmpTrackerLog_FQN]);
     delete(TmpTrackerLog_FQN);
 end
 
@@ -364,6 +388,13 @@ data_struct.info.processing_time_ms = toc(timestamps.(mfilename).start);
 if (save_matfile)
     disp(['Saving parsed data as: ', fullfile(TrackerLog_Dir, [TrackerLog_Name, suffix_string, version_string, '.mat'])]);
     save(fullfile(TrackerLog_Dir, [TrackerLog_Name, suffix_string, version_string, '.mat']), 'data_struct');
+end
+
+
+% now delete the uncompressed files
+if (delete_txt_versions_of_gzip) && (logfile_is_gzipped)
+    disp(['Deleting: ', TrackerLog_FQN]);
+    delete(TrackerLog_FQN);
 end
 
 timestamps.(mfilename).end = toc(timestamps.(mfilename).start);
