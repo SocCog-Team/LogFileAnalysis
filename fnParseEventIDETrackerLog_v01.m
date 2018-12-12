@@ -362,7 +362,9 @@ switch add_method
         end
     case 'textscan'        
         if (exist(TmpTrackerLog_FQN, 'file') == 2)
-            TrackerLogCell = textscan(TrackerLog_fd, tmp_fast.column_type_string, 'Delimiter', column_separator, 'HeaderLines', length(info_header_line_list));
+            % if the following fails chech whether the type assignments in
+            % tmp_fast.column_type_list are correct
+            TrackerLogCell = textscan(TrackerLog_fd, tmp_fast.column_type_string, 'Delimiter', column_separator, 'HeaderLines', length(info_header_line_list), 'ReturnOnError', 0);
             tmpToc = toc(timestamps.(mfilename).start);
             disp(['Trackerlog textscan took: ', num2str(tmpToc), ' seconds (', num2str(floor(tmpToc / 60), '%3.0f'),' minutes, ', num2str(tmpToc - (60 * floor(tmpToc / 60))),' seconds)']);
             data_struct = fnConvertTextscanOutputToDataStruct(TrackerLogCell, tmp_fast.header, tmp_fast.column_type_list, expand_GLM_coefficients, replace_coma_by_dot, OutOfBoundsValue);
@@ -456,7 +458,7 @@ while (~LogHeader_parsed)
     % some column names are special
     switch current_raw_column_name
         % put all named string columns here
-        case {'Current Event', 'Paradigm', 'DebugInfo'}
+        case {'Current Event', 'Paradigm', 'DebugInfo', 'Multitouch mode'}
             current_raw_column_name = sanitize_col_name_for_matlab(current_raw_column_name);
             current_raw_column_name = [current_raw_column_name, '_idx'];
             header{end+1} = current_raw_column_name;
@@ -696,7 +698,7 @@ for i_column = 1 : n_columns
     out_data_struct = fn_handle_data_struct('add_columns', out_data_struct, CurrentColumnData, {CurrentColumnName});
 end
 
-% we started with a dummy column so reove this before continuing
+% we started with a dummy column so reomve this before continuing
 out_data_struct = fn_handle_data_struct('remove_columns', out_data_struct, {'REMOVEME'});
 
 return
