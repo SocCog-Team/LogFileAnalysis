@@ -200,7 +200,8 @@ elseif iscell(new_column_data)
     end    
     if strcmp(column_name_list{1}(end-3:end), '_idx')
         data_struct.header = [data_struct.header, column_name_list];
-        if (isstr(new_column_data{1,1}))
+        
+        if (n_rows > 0) && (isstr(new_column_data{1,1}))
             % turn this into an indexed column, also add to data_struct. unique
             [UniqueValueList, ~, indexed_new_column_data] = unique(new_column_data);
             data_struct.unique_lists.(column_name_list{1}(1:end-4)) = UniqueValueList';
@@ -212,6 +213,14 @@ elseif iscell(new_column_data)
                 indexed_new_column_data(EmptyRowIdx) = 0;
             end
             data_struct.data = [data_struct.data, indexed_new_column_data];
+        else
+            if (n_rows == 0) & (n_new_columns == 1)
+                % this is an empty field in an indexed column, set to zero
+                % to denote impossible index in UniqueValueList
+                disp([mfilename, ': local_add_data_columns: empty indexed column ', column_name_list{1}]);
+                data_struct.data = [data_struct.data, 0];
+                data_struct.unique_lists.(column_name_list{1}(1:end-4)) = {};
+            end
         end
     end
 else
