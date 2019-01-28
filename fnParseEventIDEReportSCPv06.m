@@ -438,7 +438,20 @@ function [ IDinfo_struct ] = fnParseIDinfo( ReportLog_fd, current_line )
 % Date:  3/22/2017
 % Time:  11:43 AM
 % *******************
+
+% new after eventIDE 20180704 (no more colons but tabs)
+% ********************
+% Experiment         0014_DAGDFGR.v014.20.20181219.01.SCP_01
+% Computer          SCP-CTRL-01
+% Date      1/28/2019     Time      10:40 AM
+% Core random seed          1037104457
+% *******************
+
+
+
+
 IDinfo_struct = struct();
+IDinfo_version = 0; %default to the old version
 
 while ~(feof(ReportLog_fd))
 	current_line = fgetl(ReportLog_fd);
@@ -446,18 +459,53 @@ while ~(feof(ReportLog_fd))
 		% we reached the end of the ID info
 		% ATTENTION the end marker are 19 stars...
 		break
-	end
-	[Key, Value] = strtok(current_line, ':');
-	switch (Key)
-		case 'Experiment'
-			IDinfo_struct.Experiment = strtrim(Value(2:end));
-		case 'Computer'
-			IDinfo_struct.Computer = strtrim(Value(2:end));
-		case 'Date'
-			IDinfo_struct.DateString = strtrim(Value(2:end));
-		case 'Time'
-			IDinfo_struct.TimeString = strtrim(Value(2:end));
-	end
+    end
+        
+    % figure out the version of the header format only once
+    if (IDinfo_version == 0)
+        if ~isempty(strfind(current_line, ':'))
+            IDinfo_version = 1;
+        else
+            ~isempty(strfind(current_line, char(9)))
+            IDinfo_version = 2;
+        end
+    end
+    
+    if (IDinfo_version == 1)
+        [Key, Value] = strtok(current_line, ':');
+        switch (Key)
+            case 'Experiment'
+                IDinfo_struct.Experiment = strtrim(Value(2:end));
+            case 'Computer'
+                IDinfo_struct.Computer = strtrim(Value(2:end));
+            case 'Date'
+                IDinfo_struct.DateString = strtrim(Value(2:end));
+            case 'Time'
+                IDinfo_struct.TimeString = strtrim(Value(2:end));
+        end
+    end
+    if (IDinfo_version == 2)
+        % tab separated
+        [Key, Value] = strtok(current_line, char(9));
+        switch (Key)
+            case 'Experiment'
+                IDinfo_struct.Experiment = strtrim(Value(2:end));
+            case 'Computer'
+                IDinfo_struct.Computer = strtrim(Value(2:end));
+            case 'Date'
+                % this now reads "Date<-->  1/28/2019<--->Time<-->  10:40 AM^M"
+                remainder = Value;
+                [DateValue, remainder] = strtok(remainder, char(9));
+                IDinfo_struct.DateString = strtrim(DateValue);
+                [TimeKey, TimeValue] = strtok(remainder, char(9));
+                IDinfo_struct.TimeString = strtrim(TimeValue);
+%             case 'Time'
+%                 IDinfo_struct.TimeString = strtrim(Value(2:end));
+            case 'Core random seed'
+                IDinfo_struct.CoreRandomSeedString = strtrim(Value(2:end));
+
+        end
+    end
 end
 
 if isfield(IDinfo_struct, 'DateString') && isfield(IDinfo_struct, 'TimeString')
