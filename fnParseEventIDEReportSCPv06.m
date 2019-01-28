@@ -275,6 +275,14 @@ while (~feof(ReportLog_fd))
 		% variable so just treat it like one,
 		% Note, startup variables live before site specific record types
 		[VariableName, VariableValue] = strtok(current_line, ':');
+        if isempty(VariableValue)
+            % no colon found? probably nw style tab separated key vaue pairsl
+            [VariableName, VariableValue] = strtok(current_line, char(9));
+        end
+        if isempty(VariableValue)
+            error(['Looking for key-value pairs; found: ', current_line, ' seems to lack a Value...']);
+        end
+        
 		SanitizedVariableName = sanitize_col_name_for_matlab(VariableName);
 		StartUpVariables_struct.(SanitizedVariableName) = strtrim(VariableValue(2:end));
 	end
