@@ -458,7 +458,7 @@ while (~LogHeader_parsed)
     % some column names are special
     switch current_raw_column_name
         % put all named string columns here
-        case {'Current Event', 'Paradigm', 'DebugInfo', 'Multitouch mode'}
+        case {'Current Event', 'Paradigm', 'DebugInfo', 'Multitouch mode', 'Sample Type', 'Fiducial Surface', 'Detection Method'}
             current_raw_column_name = sanitize_col_name_for_matlab(current_raw_column_name);
             current_raw_column_name = [current_raw_column_name, '_idx'];
             header{end+1} = current_raw_column_name;
@@ -607,7 +607,17 @@ function [ sanitized_column_name ]  = sanitize_col_name_for_matlab( raw_column_n
 taboo_char_list =		{' ', '-', '.', '='};
 replacement_char_list = {'_', '_', '_dot_', '_eq_'};
 
+taboo_first_char_list = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9'};
+replacement_firts_char_list = {'Zero', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'};
+
 sanitized_column_name = raw_column_name;
+% check first character to not be a number
+taboo_first_char_idx = find(ismember(taboo_first_char_list, raw_column_name(1)));
+if ~isempty(taboo_first_char_idx)
+    sanitized_column_name = [replacement_firts_char_list{taboo_first_char_idx}, raw_column_name(2:end)];
+end
+
+
 
 for i_taboo_char = 1: length(taboo_char_list)
     current_taboo_string = taboo_char_list{i_taboo_char};
