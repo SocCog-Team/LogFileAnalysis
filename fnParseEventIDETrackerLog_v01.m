@@ -189,12 +189,12 @@ end
 % NOTE we assume the string 'EventIDE TimeStamp' to be part of the LogHeader bot not
 % the data lines
 if ~isempty(strfind(current_line, 'EventIDE TimeStamp'))
-    [header, LogHeader_list, column_type_list, column_type_string] = process_LogHeader(current_line, column_separator, force_number_of_columns, forced_header_string, 1);
+    [header, LogHeader_list, column_type_list, column_type_string, orig_LogHeader_line] = process_LogHeader(current_line, column_separator, force_number_of_columns, forced_header_string, 1);
     info.LogHeader = LogHeader_list;
     
     % for fast parsing we want not expand the GLM Coefficients just yet for
     % the column_type_string
-    [tmp_fast.header, tmp_fast.LogHeader_list, tmp_fast.column_type_list, tmp_fast.column_type_string] = process_LogHeader(current_line, column_separator, force_number_of_columns, forced_header_string, 0);
+    [tmp_fast.header, tmp_fast.LogHeader_list, tmp_fast.column_type_list, tmp_fast.column_type_string, tmp_fast.orig_LogHeader_line] = process_LogHeader(current_line, column_separator, force_number_of_columns, forced_header_string, 0);
     
     % create the data structure
     data_struct = fn_handle_data_struct('create', header);
@@ -249,9 +249,25 @@ if (fixup_userfield_columns == 2) && (exist(TmpTrackerLog_FQN, 'file') ~= 2)
         if (fixup_userfield_columns == 2)
             separator_idx = strfind(current_line, column_separator);
             if length(separator_idx) < length(tmp_fast.header)
-                % this line is missing columns, most likely at the UserField
-                % position
-                current_line = strrep(current_line, [column_separator, column_separator], repmat(column_separator, [1 (2 + length(tmp_fast.header) - length(separator_idx))]));
+                % this line is missing columns, most likely at the UserField position
+                UserField_pos_idx = strfind(tmp_fast.orig_LogHeader_line, 'User Field');
+                % okay the column is really called user field, that allows
+                % us to place the "missing" empty columns at a better place
+                % than everywhere
+                if ~isempty(UserField_pos_idx)
+                    LogHeader_line_separator_idx = strfind(tmp_fast.orig_LogHeader_line, column_separator);
+                    UserField_col_idx = find(LogHeader_line_separator_idx == (UserField_pos_idx - 1)) + 1;
+                    EmptyUserFieldDAtaReplacement_string = repmat(column_separator, [1 (2 + length(tmp_fast.header) - length(separator_idx))]);
+                    tmp_current_line_start = current_line(1:separator_idx(UserField_col_idx)-2);
+                    tmp_current_line_end = current_line(separator_idx(UserField_col_idx)+1:end);
+                    current_line = [tmp_current_line_start, EmptyUserFieldDAtaReplacement_string, tmp_current_line_end];
+                else
+                    % note that the PupilLabs trackerlogfiles do have real
+                    % empty data fields which leads to multiple
+                    % replacements by this code, these errors are real and
+                    % impossible to fix without additional information
+                    current_line = strrep(current_line, [column_separator, column_separator], repmat(column_separator, [1 (2 + length(tmp_fast.header) - length(separator_idx))]));
+                end
             end
         end
         
@@ -408,7 +424,7 @@ end
 
 
 
-function 	[ header, LogHeader_list, column_type_list, column_type_string ] = process_LogHeader( LogHeader_line, column_separator, number_of_data_columns, forced_header_string, expand_GLMCoefficientsString)
+function 	[ header, LogHeader_list, column_type_list, column_type_string, orig_LogHeader_line ] = process_LogHeader( LogHeader_line, column_separator, number_of_data_columns, forced_header_string, expand_GLMCoefficientsString)
 % LogHeader found, so parse it
 % special field names:
 % string:	'Current Event', 'Paradigm', 'DebugInfo'
@@ -418,6 +434,7 @@ LogHeader_list = {};	% just a cell array of the individual columns of the LogHea
 column_type_list = {};
 column_type_string = '';
 
+orig_LogHeader_line = LogHeader_line;
 
 if ~exist('expand_GLMCoefficientsString', 'var') || isempty(expand_GLMCoefficientsString)
     expand_GLMCoefficientsString = 0;
