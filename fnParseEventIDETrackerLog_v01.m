@@ -46,7 +46,7 @@ fq_mfilename = mfilename('fullpath');
 mfilepath = fileparts(fq_mfilename);
 
 
-version_string = '.v004';	% we append this to the filename to figure out whether a report file should be re-parsed... this needs to be updated whenthe parser changes
+version_string = '.v005';	% we append this to the filename to figure out whether a report file should be re-parsed... this needs to be updated whenthe parser changes
 
 % as long as the UserFields proxy variable of a tracker element is not written it is empty,
 % hence in the log it appears as ";;" at the position of the UserField
@@ -93,7 +93,7 @@ current_line_number = 0; % to get the data offset from the top
 
 
 if (~exist('TrackerLog_FQN', 'var'))
-    [TrackerLog_Name, TrackerLog_Dir] = uigetfile('TrackerLog--*.txt', 'Select the tracker log file');
+    [TrackerLog_Name, TrackerLog_Dir] = uigetfile('*trackerlog.txt', 'Select the tracker log file');
     TrackerLog_FQN = fullfile(TrackerLog_Dir, TrackerLog_Name);
     save_matfile = 1;
 else
@@ -389,7 +389,7 @@ data_struct.info = info;
 data_struct.info.processing_time_ms = toc(timestamps.(mfilename).start);
 if (save_matfile)
     disp(['Saving parsed data as: ', fullfile(TrackerLog_Dir, [TrackerLog_Name, suffix_string, version_string, '.mat'])]);
-    save(fullfile(TrackerLog_Dir, [TrackerLog_Name, suffix_string, version_string, '.mat']), 'data_struct');
+    save(fullfile(TrackerLog_Dir, [TrackerLog_Name, suffix_string, version_string, '.mat']), 'data_struct', '-v7.3');
 end
 
 
@@ -458,7 +458,7 @@ while (~LogHeader_parsed)
     % some column names are special
     switch current_raw_column_name
         % put all named string columns here
-        case {'Current Event', 'Paradigm', 'DebugInfo', 'Multitouch mode', 'Sample Type', 'Fiducial Surface', 'Detection Method'}
+        case {'Current Event', 'Paradigm', 'DebugInfo', 'Multitouch mode', 'Sample Type', 'Fiducial Surface', 'Detection Method', 'Source ID'}
             current_raw_column_name = sanitize_col_name_for_matlab(current_raw_column_name);
             current_raw_column_name = [current_raw_column_name, '_idx'];
             header{end+1} = current_raw_column_name;
