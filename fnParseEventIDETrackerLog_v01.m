@@ -23,6 +23,17 @@ function [ data_struct ] = fnParseEventIDETrackerLog_v01( TrackerLog_FQN, column
 %   After parsing try to convert User_Field_NN_idx columns into numeric
 %   columns if they appear numeric, also delete completely empty columns
 %   with User_Field_NN_idx headers
+%	Add generation of "corrected" sample timestamps in eventide time (needs 
+%		to be handled separatly for each tracker type)
+%		The idea is to use the tracker supplied timestamps as better
+%		estimates for the real data acquisition time points
+%		The general approach is to assign an earlieast (e_EventIDE_ts) and a latest
+%		eventide timestamps (l_EventIDE_ts) and the according tracker timestamps e_Tracker_ts l_Tracker_ts, then
+%		calculate a corrected eventide timestamp by simply doing:
+%		cor_EventIDE_ts = cur_Tracker_ts * (l_EventIDE_ts-e_EventIDE_ts)/(l_Tracker_ts-e_Tracker_ts) + e_EventIDE_ts
+%		the challenge now is getting the according l_*_ts and e_8_ts pairs
+%		between both series...
+%		(and this relies on trustworthy tracker time stamps so will not work for PQLabs at all)
 %
 % DONE:
 %   implement and benchmark a textscan based method with after parsing
@@ -65,6 +76,9 @@ add_method = 'textscan';    % hopefully the future
 OutOfBoundsValue = NaN;
 pre_allocate_data = 1;
 batch_grow_data_array = 1;	% should be default
+
+add_corrected_tracker_timestamps = 1;
+
 
 if (test_timing)
 	suffix_string = [suffix_string, '.', add_method];
@@ -288,19 +302,24 @@ if (fixup_userfield_columns == 2) && (exist(TmpTrackerLog_FQN, 'file') ~= 2)
 		fprintf(FixedTrackerLog_fd, '%s\r\n', current_line);
 	end
 	fclose(FixedTrackerLog_fd);
+
+	tmpToc = toc(timestamps.(mfilename).start);
+	
+	disp(['Trackerlog fix-ups took: ', num2str(tmpToc), ' seconds (', num2str(floor(tmpToc / 60), '%3.0f'),' minutes, ', num2str(tmpToc - (60 * floor(tmpToc / 60))),' seconds)']);
+end
+
+% make sure to jump into the fixed trackerlog even if that existed already
+if (fixup_userfield_columns == 2) && (exist(TmpTrackerLog_FQN, 'file') == 2)
 	fclose(TrackerLog_fd);
 	TrackerLog_fd = fopen(TmpTrackerLog_FQN, 'r');
 	
 	% just skip over the header and start with the first data line
-	fseek(TrackerLog_fd, data_start_offset, 'bof');    tmpToc = toc(timestamps.(mfilename).start);
-	
-	disp(['Trackerlog fix-ups took: ', num2str(tmpToc), ' seconds (', num2str(floor(tmpToc / 60), '%3.0f'),' minutes, ', num2str(tmpToc - (60 * floor(tmpToc / 60))),' seconds)']);
-	
+	fseek(TrackerLog_fd, data_start_offset, 'bof');
 	if ismember(add_method, {'add_row_to_global_struct', 'add_row'})
 		current_line = fgetl(TrackerLog_fd); % we need this for the next section where we want to start with a loaded log line
-		
 	end
 end
+
 
 switch add_method
 	case {'add_row_to_global_struct', 'add_row'}
@@ -401,6 +420,21 @@ data_struct = fn_handle_data_struct('truncate_to_actual_size', data_struct);
 
 % add the additional information structure
 data_struct.info = info;
+
+
+% EventIDE timestamps basically record when eventIDE got hold of the
+% samples, not when they happened, try to use tracker time stamps to
+% created corrected eventIDE timestamps
+if (add_corrected_tracker_timestamps)
+	% we need the tracker type the event ide time stamp and tracker
+	% timestamp columns
+	[col_header, col_data] = fn_extract_corrected_eventIDE_timestamps(info.tracker_name, data_struct.data(:, data_struct.cn.EventIDE_TimeStamp), data_struct.data(:, data_struct.cn.Tracker_Time_Stamp));
+	if ~isempty(col_data)
+		% only add if we were successful
+		data_struct = fn_handle_data_struct('add_columns', data_struct, col_data, col_header);
+	end
+end
+
 
 data_struct.info.processing_time_ms = toc(timestamps.(mfilename).start);
 if (save_matfile)
@@ -727,6 +761,94 @@ end
 
 % we started with a dummy column so reomve this before continuing
 out_data_struct = fn_handle_data_struct('remove_columns', out_data_struct, {'REMOVEME'});
+
+return
+end
+
+function [ col_header, corrected_EventIDE_TimeStamp_list ] = fn_extract_corrected_eventIDE_timestamps( tracker_name, EventIDE_TimeStamp_list, Tracker_Time_Stamp_list )
+% EventIDE_TimeStamps only recodr the time eventide imported a sample,
+% while Tracker_Time_Stamps (for reliable Trackers) are closer to the real
+% time of acquisition, use the traker timestamps to adjust the eventide
+% timestamps
+debug = 1;
+
+col_header = 'corrected_EventIDE_TimeStamp';
+corrected_EventIDE_TimeStamp_list = [];
+
+tracker_type = '';
+% first deduce the type
+if ~isempty(regexpi(tracker_name, 'PupilLabs', 'match'))
+	tracker_type = 'pupillabs';
+end
+if ~isempty(regexpi(tracker_name, 'EyeLink', 'match'))
+	tracker_type = 'eyelink';
+end
+
+% error out for unhandled types
+switch tracker_type
+	case 'pupillabs'
+	case 'eyelink'
+	
+	otherwise
+		error(['Encountered unhandled tracker type: ', tracker_name, ' please handle gracefully']);
+end
+
+
+%corrected_EventIDE_TimeStamp_list = zeros(size(EventIDE_TimeStamp_list));
+
+% matching the end should be the simplest, we simlpy take the youngest
+% timestamps we find for each tracker
+last_EventIDE_ts = max(EventIDE_TimeStamp_list);
+last_Tracker_ts = max(Tracker_Time_Stamp_list);
+% now to better match get the EventIDE_TimeStamp from the last_Tracker_ts
+% sample
+last_Tracker_ts_idx = find(Tracker_Time_Stamp_list == last_Tracker_ts); % if multiple pick the first one
+closest_matching_last_EventIDE_ts = EventIDE_TimeStamp_list(last_Tracker_ts_idx(1));
+
+if (closest_matching_last_EventIDE_ts ~= last_EventIDE_ts)
+	disp('fn_extract_corrected_eventIDE_timestamps: last timestamps of eventide and tracker not aligned, expected for PupilLabs data.');
+end
+
+first_EventIDE_ts = min(EventIDE_TimeStamp_list);	% again simple, as this is 
+first_Tracker_ts = min(Tracker_Time_Stamp_list);	% again simple, as this is 
+% and now we want the highest Tracker_Time_Stamp with an EventIDE_TimeStamp
+% <= first_EventIDE_ts, we need to do this is especially pupillabs samples
+% are not strictly ordered in time
+first_EventIDE_ts_sample_idx = find(EventIDE_TimeStamp_list <= first_EventIDE_ts);
+% now get the highest Tracker_Time_Stamp in that subset
+closest_matching_first_Tracker_ts = max(Tracker_Time_Stamp_list(first_EventIDE_ts_sample_idx));
+
+ts_offset = first_EventIDE_ts;
+ts_scale = (closest_matching_last_EventIDE_ts - first_EventIDE_ts) / (last_Tracker_ts - closest_matching_first_Tracker_ts);
+corrected_EventIDE_TimeStamp_list = Tracker_Time_Stamp_list * ts_scale + ts_offset;
+
+if (closest_matching_first_Tracker_ts ~= first_Tracker_ts)
+	disp('fn_extract_corrected_eventIDE_timestamps: first timestamps of eventide and tracker not aligned, expected for PupilLabs data.');
+end
+
+
+if (debug)
+	figure('Name', 'EventIDE_TimeStamp_list - corrected_EventIDE_TimeStamp_list');
+	subplot(4, 1, 1)
+	hold on 
+	plot(EventIDE_TimeStamp_list - EventIDE_TimeStamp_list(1));
+	plot(corrected_EventIDE_TimeStamp_list - corrected_EventIDE_TimeStamp_list(1));
+	hold off
+	
+	subplot(4, 1, 2)
+	hold on 
+	plot(EventIDE_TimeStamp_list - corrected_EventIDE_TimeStamp_list);
+	hold off
+
+	subplot(4, 1, 3)
+	hold on
+	histogram(EventIDE_TimeStamp_list);
+	histogram(corrected_EventIDE_TimeStamp_list);
+	hold off
+	
+	subplot(4, 1, 4)
+	histogram(EventIDE_TimeStamp_list - corrected_EventIDE_TimeStamp_list);
+end
 
 return
 end
