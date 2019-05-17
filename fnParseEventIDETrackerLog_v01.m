@@ -57,7 +57,7 @@ fq_mfilename = mfilename('fullpath');
 mfilepath = fileparts(fq_mfilename);
 
 
-version_string = '.v005';	% we append this to the filename to figure out whether a report file should be re-parsed... this needs to be updated whenthe parser changes
+version_string = '.v006';	% we append this to the filename to figure out whether a report file should be re-parsed... this needs to be updated whenthe parser changes
 
 % as long as the UserFields proxy variable of a tracker element is not written it is empty,
 % hence in the log it appears as ";;" at the position of the UserField
@@ -134,10 +134,16 @@ if strcmp(orig_TrackerLog_ext, '.gz')
 	gzip_TrackerLog_FQN = TrackerLog_FQN;
 	TrackerLog_FQN = fullfile(orig_TrackerLog_path, orig_TrackerLog_name);
 	[TrackerLog_Dir, TrackerLog_Name] = fileparts(TrackerLog_FQN);
-	% found a gziped file, now uncompress
-	disp(['Current trackerlog file: ', gzip_TrackerLog_FQN]);
-	disp(['Gunzipping the compressed trackerlog file, might take a while...']);
-	gunzip(gzip_TrackerLog_FQN);
+	% only unzip if the unzipped file does not exist yet:
+	if (exist(TrackerLog_FQN, 'file') ~= 2)
+		% found a gziped file, now uncompress
+		disp(['Current trackerlog file: ', gzip_TrackerLog_FQN]);
+		disp(['Gunzipping the compressed trackerlog file, might take a while...']);
+		gunzip(gzip_TrackerLog_FQN);
+	else
+		disp(['Gzipped log file selected: skipping the unzipping since unzipped version already exists,.']);
+		disp(['                           to force unzipping simply delete ', TrackerLog_FQN]);
+	end
 end
 
 disp(TrackerLog_FQN);
@@ -431,7 +437,7 @@ if (add_corrected_tracker_timestamps)
 	[col_header, col_data] = fn_extract_corrected_eventIDE_timestamps(info.tracker_name, data_struct.data(:, data_struct.cn.EventIDE_TimeStamp), data_struct.data(:, data_struct.cn.Tracker_Time_Stamp));
 	if ~isempty(col_data)
 		% only add if we were successful
-		data_struct = fn_handle_data_struct('add_columns', data_struct, col_data, col_header);
+		data_struct = fn_handle_data_struct('add_columns', data_struct, col_data, {col_header});
 	end
 end
 
@@ -834,8 +840,12 @@ if (debug)
 	subplot(4, 1, 1)
 	hold on 
 	plot(EventIDE_TimeStamp_list - EventIDE_TimeStamp_list(1), 'Color', [1 0 0]);
+	legend_text = {'original EventIDE timestamps'};
 	plot(corrected_EventIDE_TimeStamp_list - corrected_EventIDE_TimeStamp_list(1), 'Color', [0 1 0]);
+	legend_text{end+1} = 'corrected_EventIDE_timestamps';
 	plot(sort(corrected_EventIDE_TimeStamp_list) - corrected_EventIDE_TimeStamp_list(1), 'Color', [0 0 1]);
+	legend_text{end+1} = 'sorted  corrected_EventIDE_timestamps';
+	legend(legend_text);
 	hold off
 	
 	subplot(4, 1, 2)
