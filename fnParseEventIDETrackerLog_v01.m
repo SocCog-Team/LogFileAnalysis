@@ -772,7 +772,7 @@ function [ col_header, corrected_EventIDE_TimeStamp_list ] = fn_extract_correcte
 % timestamps
 debug = 1;
 
-col_header = 'corrected_EventIDE_TimeStamp';
+col_header = 'Tracker_corrected_EventIDE_TimeStamp';
 corrected_EventIDE_TimeStamp_list = [];
 
 tracker_type = '';
@@ -805,8 +805,8 @@ last_Tracker_ts = max(Tracker_Time_Stamp_list);
 last_Tracker_ts_idx = find(Tracker_Time_Stamp_list == last_Tracker_ts); % if multiple pick the first one
 closest_matching_last_EventIDE_ts = EventIDE_TimeStamp_list(last_Tracker_ts_idx(1));
 
-if (closest_matching_last_EventIDE_ts ~= last_EventIDE_ts)
-	disp('fn_extract_corrected_eventIDE_timestamps: last timestamps of eventide and tracker not aligned, expected for PupilLabs data.');
+if (Tracker_Time_Stamp_list(end) ~= last_Tracker_ts)
+	disp('fn_extract_corrected_eventIDE_timestamps: last timestamp order of eventide and tracker not aligned, expected for PupilLabs data.');
 end
 
 first_EventIDE_ts = min(EventIDE_TimeStamp_list);	% again simple, as this is 
@@ -818,36 +818,39 @@ first_EventIDE_ts_sample_idx = find(EventIDE_TimeStamp_list <= first_EventIDE_ts
 % now get the highest Tracker_Time_Stamp in that subset
 closest_matching_first_Tracker_ts = max(Tracker_Time_Stamp_list(first_EventIDE_ts_sample_idx));
 
-ts_offset = first_EventIDE_ts;
-ts_scale = (closest_matching_last_EventIDE_ts - first_EventIDE_ts) / (last_Tracker_ts - closest_matching_first_Tracker_ts);
-corrected_EventIDE_TimeStamp_list = Tracker_Time_Stamp_list * ts_scale + ts_offset;
-
 if (closest_matching_first_Tracker_ts ~= first_Tracker_ts)
 	disp('fn_extract_corrected_eventIDE_timestamps: first timestamps of eventide and tracker not aligned, expected for PupilLabs data.');
 end
+
+
+
+ts_offset = first_EventIDE_ts;
+ts_scale = (closest_matching_last_EventIDE_ts - first_EventIDE_ts) / (last_Tracker_ts - closest_matching_first_Tracker_ts);
+corrected_EventIDE_TimeStamp_list = (Tracker_Time_Stamp_list - closest_matching_first_Tracker_ts) * ts_scale + ts_offset;
 
 
 if (debug)
 	figure('Name', 'EventIDE_TimeStamp_list - corrected_EventIDE_TimeStamp_list');
 	subplot(4, 1, 1)
 	hold on 
-	plot(EventIDE_TimeStamp_list - EventIDE_TimeStamp_list(1));
-	plot(corrected_EventIDE_TimeStamp_list - corrected_EventIDE_TimeStamp_list(1));
+	plot(EventIDE_TimeStamp_list - EventIDE_TimeStamp_list(1), 'Color', [1 0 0]);
+	plot(corrected_EventIDE_TimeStamp_list - corrected_EventIDE_TimeStamp_list(1), 'Color', [0 1 0]);
+	plot(sort(corrected_EventIDE_TimeStamp_list) - corrected_EventIDE_TimeStamp_list(1), 'Color', [0 0 1]);
 	hold off
 	
 	subplot(4, 1, 2)
 	hold on 
-	plot(EventIDE_TimeStamp_list - corrected_EventIDE_TimeStamp_list);
+	plot((EventIDE_TimeStamp_list - EventIDE_TimeStamp_list(1)) - (corrected_EventIDE_TimeStamp_list - corrected_EventIDE_TimeStamp_list(1)));
 	hold off
 
 	subplot(4, 1, 3)
+	h1 = histogram(diff(EventIDE_TimeStamp_list));
 	hold on
-	histogram(EventIDE_TimeStamp_list);
-	histogram(corrected_EventIDE_TimeStamp_list);
+	h2 = histogram(diff(sort(corrected_EventIDE_TimeStamp_list)));
 	hold off
 	
 	subplot(4, 1, 4)
-	histogram(EventIDE_TimeStamp_list - corrected_EventIDE_TimeStamp_list);
+	h3 = histogram((EventIDE_TimeStamp_list - EventIDE_TimeStamp_list(1)) - (sort(corrected_EventIDE_TimeStamp_list) - corrected_EventIDE_TimeStamp_list(1)));
 end
 
 return
