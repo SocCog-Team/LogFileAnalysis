@@ -67,11 +67,11 @@ version_string = '.v006';	% we append this to the filename to figure out whether
 
 delete_txt_versions_of_gzip = 1; % delete the extracted txt file versions of gzipped ones to save space
 fixup_userfield_columns = 2;
-delete_fixed_trackerlog = 0;    %TODO instead clone a header into the fixed data file, zip the original under a new name and save the fixed as the "normal" tracker log file
+delete_fixed_trackerlog = 1;    %TODO instead clone a header into the fixed data file, zip the original under a new name and save the fixed as the "normal" tracker log file
 expand_GLM_coefficients = 1;
 suffix_string = '';
-test_timing = 1;
-add_method = 'add_row_to_global_struct';		% add_row (really slow, just use for gold truth control), add_row_to_global_struct, textscan
+test_timing = 0;
+%add_method = 'add_row_to_global_struct';		% add_row (really slow, just use for gold truth control), add_row_to_global_struct, textscan
 add_method = 'textscan';    % hopefully the future
 OutOfBoundsValue = NaN;
 pre_allocate_data = 1;
@@ -111,24 +111,58 @@ if (~exist('TrackerLog_FQN', 'var'))
 	TrackerLog_FQN = fullfile(TrackerLog_Dir, TrackerLog_Name);
 	save_matfile = 1;
 else
-	[TrackerLog_Dir, TrackerLog_Name] = fileparts(TrackerLog_FQN);
-	save_matfile = 0;
+	[TrackerLog_Dir, TrackerLog_Name, TrackerLog_Ext] = fileparts(TrackerLog_FQN);
+	save_matfile = 1;
 end
 
 if (test_timing)
 	save_matfile = 1;
 end
 
+return_most_processed = 0;
+
 % check if the requested files exists at all
 TrackerLog_FQN_dirstruct = dir(TrackerLog_FQN);
 if (isempty(TrackerLog_FQN_dirstruct))
 	disp(['File not found: ', TrackerLog_FQN]);
-	return
+	if ~isempty(regexp(TrackerLog_FQN, 'trackerlog$'))
+		% the user requested a *.trackerlog, which means use the most
+		% processed version available
+		return_most_processed = 1;
+	else
+		return
+	end
 end
+
+
+if (return_most_processed)
+	% try to load the existing mat file, if current.
+	tmp = dir(fullfile(TrackerLog_Dir, [TrackerLog_Name, TrackerLog_Ext, version_string, '.mat']));
+	if ~isempty(tmp)
+		disp(['Found current mat version of the trackerlog, loading: ', fullfile(TrackerLog_Dir, [TrackerLog_Name, TrackerLog_Ext, version_string, '.mat'])]);
+		load(fullfile(TrackerLog_Dir, [TrackerLog_Name, TrackerLog_Ext, version_string, '.mat']))
+		return
+	end
+	% for the time being fall back to full processing if no mat file was
+	% found
+	% unpacked file exisys?
+	TrackerLog_FQN = [TrackerLog_FQN, '.txt'];
+	[TrackerLog_Dir, TrackerLog_Name, TrackerLog_Ext] = fileparts(TrackerLog_FQN);
+	if (exist(TrackerLog_FQN, 'file') ~= 2)
+		if strcmp(TrackerLog_Ext, '.txt')
+			% fall back to the gzipped version
+			TrackerLog_FQN = [TrackerLog_FQN, '.gz'];
+			[TrackerLog_Dir, TrackerLog_Name, TrackerLog_Ext] = fileparts(TrackerLog_FQN);
+		end
+	end	
+end
+
 
 % check for gzipped file
 logfile_is_gzipped = 0;
 [orig_TrackerLog_path, orig_TrackerLog_name, orig_TrackerLog_ext] = fileparts(TrackerLog_FQN);
+
+
 if strcmp(orig_TrackerLog_ext, '.gz')
 	logfile_is_gzipped = 1;
 	gzip_TrackerLog_FQN = TrackerLog_FQN;
@@ -144,10 +178,27 @@ if strcmp(orig_TrackerLog_ext, '.gz')
 		disp(['Gzipped log file selected: skipping the unzipping since unzipped version already exists,.']);
 		disp(['                           to force unzipping simply delete ', TrackerLog_FQN]);
 	end
+else
+	switch orig_TrackerLog_ext
+		case '.txt'
+			gzip_TrackerLog_FQN = [TrackerLog_FQN, '.gz'];
+		case '.trackerlog'
+			gzip_TrackerLog_FQN = [TrackerLog_FQN, '.txt.gz'];
+	end
 end
 
 disp(TrackerLog_FQN);
 TmpTrackerLog_FQN = [TrackerLog_FQN, '.Fixed.txt'];
+
+%check for a gzipped version of this file and unzip unless a .txt already
+%exists.
+gzip_TmpTrackerLog_FQN = [TmpTrackerLog_FQN, '.gz'];
+if ~exist(TmpTrackerLog_FQN, 'file')
+	if exist(gzip_TmpTrackerLog_FQN, 'file')
+		disp(['Gunzipping compressed fixed trackerlog: ', gzip_TmpTrackerLog_FQN])
+		gunzip(gzip_TmpTrackerLog_FQN);
+	end
+end
 
 
 tmp_dir_TrackerLog_FQN = dir(TrackerLog_FQN);
@@ -314,6 +365,12 @@ if (fixup_userfield_columns == 2) && (exist(TmpTrackerLog_FQN, 'file') ~= 2)
 	disp(['Trackerlog fix-ups took: ', num2str(tmpToc), ' seconds (', num2str(floor(tmpToc / 60), '%3.0f'),' minutes, ', num2str(tmpToc - (60 * floor(tmpToc / 60))),' seconds)']);
 end
 
+if (exist(TmpTrackerLog_FQN, 'file') == 2) && (~(exist(gzip_TmpTrackerLog_FQN, 'file') == 2))
+	disp(['Gzipping compressed fixed trackerlog: ', TmpTrackerLog_FQN])
+	gzip(TmpTrackerLog_FQN);	
+end
+
+
 % make sure to jump into the fixed trackerlog even if that existed already
 if (fixup_userfield_columns == 2) && (exist(TmpTrackerLog_FQN, 'file') == 2)
 	fclose(TrackerLog_fd);
@@ -416,8 +473,11 @@ end
 % clean up
 fclose(TrackerLog_fd);
 
+
+
+
 % delete the temporary fixed up tracker log file?
-if (delete_fixed_trackerlog) && (exist(TmpTrackerLog_FQN, 'file') == 2)
+if (delete_fixed_trackerlog) && (exist(TmpTrackerLog_FQN, 'file') == 2) && (exist(gzip_TmpTrackerLog_FQN, 'file') == 2)
 	disp(['Deleting: ', TmpTrackerLog_FQN]);
 	delete(TmpTrackerLog_FQN);
 end
@@ -434,7 +494,16 @@ data_struct.info = info;
 if (add_corrected_tracker_timestamps)
 	% we need the tracker type the event ide time stamp and tracker
 	% timestamp columns
-	[col_header, col_data] = fn_extract_corrected_eventIDE_timestamps(info.tracker_name, data_struct.data(:, data_struct.cn.EventIDE_TimeStamp), data_struct.data(:, data_struct.cn.Tracker_Time_Stamp));
+	
+	if isfield(data_struct.cn, 'Tracker_Time_Stamp')
+		tracker_timestamp_column = data_struct.cn.Tracker_Time_Stamp;
+	elseif isfield(data_struct.cn, 'Tracker_time_stamp')
+		tracker_timestamp_column = data_struct.cn.Tracker_time_stamp;
+	end
+	
+	
+	[col_header, col_data] = fn_extract_corrected_eventIDE_timestamps(info.tracker_name, data_struct.data(:, data_struct.cn.EventIDE_TimeStamp), ...
+		data_struct.data(:, tracker_timestamp_column));
 	if ~isempty(col_data)
 		% only add if we were successful
 		data_struct = fn_handle_data_struct('add_columns', data_struct, col_data, {col_header});
@@ -450,7 +519,7 @@ end
 
 
 % now delete the uncompressed files
-if (delete_txt_versions_of_gzip) && (logfile_is_gzipped)
+if (delete_txt_versions_of_gzip) && (exist(TrackerLog_FQN, 'file') == 2) && (exist(gzip_TrackerLog_FQN, 'file') == 2)
 	disp(['Deleting: ', TrackerLog_FQN]);
 	delete(TrackerLog_FQN);
 end
