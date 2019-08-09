@@ -69,9 +69,11 @@ end
 %  	'20170707', '20170707T111529.A_Magnus.B_None.SCP_01', '20170707T111529.A_Magnus.B_None.SCP_01_TrackerLogs', 'TrackerLog--EyeLinkProxyTrackerA--2017-07-07--11-16.txt'));
 
 
-% german language setting file with comma as decimal separator
-tmp_data = fnParseEventIDEReportSCPv06( fullfile(BaseDir, 'SCP-CTRL-01', 'SCP_DATA', 'SCP-CTRL-01', 'SESSIONLOGS', ...
- 	'20170707', '20170707T111529.A_Magnus.B_None.SCP_01', '20170707T111529.A_Magnus.B_None.SCP_01.log'));
+% % german language setting file with comma as decimal separator
+% tmp_data = fnParseEventIDEReportSCPv06( fullfile(BaseDir, 'SCP-CTRL-01', 'SCP_DATA', 'SCP-CTRL-01', 'SESSIONLOGS', ...
+%  	'20170707', '20170707T111529.A_Magnus.B_None.SCP_01', '20170707T111529.A_Magnus.B_None.SCP_01.log'));
+
+
 
 
 end
