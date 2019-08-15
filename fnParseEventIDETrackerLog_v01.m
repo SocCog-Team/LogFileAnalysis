@@ -119,6 +119,21 @@ if (test_timing)
 	save_matfile = 1;
 end
 
+
+[TrackerLog_path, TrackerLog_name, TrackerLog_ext] = fileparts(TrackerLog_FQN);
+if strcmp(TrackerLog_ext, '.mat')
+	% this seems to be an existing parsed trackerlog so just read it in if
+	% it is current
+	data_struct = load(TrackerLog_FQN);
+	if ~isempty(regexp(TrackerLog_name, version_string))
+		disp(['Requested TrackerLog is a .mat file of the most recent version, just loading it...']);
+	else
+		display(['WARNING: the requested TrackerLog (', TrackerLog_name, ') is not of the curreny version, still loading it...']);
+	end
+	return
+end
+
+
 return_most_processed = 0;
 
 % check if the requested files exists at all
