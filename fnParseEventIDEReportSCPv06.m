@@ -78,6 +78,20 @@ if ~exist(ReportLog_FQN, 'file')
     return
 end    
 
+[ReportLog_path, ReportLog_name, ReportLog_ext] = fileparts(ReportLog_FQN);
+if strcmp(ReportLog_ext, '.mat')
+	% this seems to be an existing parsed trackerlog so just read it in if
+	% it is current
+	report_struct = load(ReportLog_FQN);
+
+	if ~isempty(regexp(ReportLog_name, version_string))
+		disp(['Requested ReportLog is a .mat file of the most recent version, just loading it...']);
+	else
+		display(['WARNING: the requested ReportLog (', ReportLog_name, ') is not of the curreny version, still loading it...']);
+	end
+	return
+end
+
 tmp_dir_ReportLog_FQN = dir(ReportLog_FQN);
 ReportLog_size_bytes  = tmp_dir_ReportLog_FQN.bytes;
 
