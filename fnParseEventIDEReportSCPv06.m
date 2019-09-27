@@ -63,14 +63,27 @@ report_struct = struct();
 
 
 if (~exist('ReportLog_FQN', 'var'))
-	[ReportLog_Name, ReportLog_Dir] = uigetfile('*.log', 'Select the eventIDE log file to parse');
-	ReportLog_FQN = fullfile(ReportLog_Dir, ReportLog_Name);
+	[ReportLog_name, ReportLog_Dir] = uigetfile('*.log', 'Select the eventIDE log file to parse');
+	ReportLog_FQN = fullfile(ReportLog_Dir, ReportLog_name);
 	%save_matfile = 1;
 elseif isempty(ReportLog_FQN)
 	% just return the current version number as second return value
 	return
 else
-	[ReportLog_Dir, ReportLog_Name] = fileparts(ReportLog_FQN);
+	[ReportLog_Dir, ReportLog_name, ReportLog_Ext] = fileparts(ReportLog_FQN);
+	% if the extension is just triallog use an existing uptodate matfile or
+	% parse the txt file if no current mat file exists
+	if strcmp(ReportLog_Ext, '.triallog')
+		disp('Trying to get the most cooked version of the triallog file:');
+		if exist([ReportLog_FQN, version_string, '.mat'], 'file')
+			% mat file exists, simply load and return
+			ReportLog_FQN = [ReportLog_FQN, version_string, '.mat'];
+		else
+			% matfile does not exist, so try to parse the .txt version instead
+			ReportLog_FQN = [ReportLog_FQN, '.txt'];
+		end
+		disp(['Opening: ', ReportLog_FQN]);
+	end
 	%save_matfile = 0;
 end
 if ~exist(ReportLog_FQN, 'file')
@@ -407,8 +420,8 @@ report_struct = fnFixEventIDEReportData(report_struct);
 
 report_struct.info.processing_time_ms = toc(timestamps.(mfilename).start);
 if (save_matfile)
-	disp(['Saving parsed report file as ', fullfile(ReportLog_Dir, [ReportLog_Name, suffix_string, version_string, '.mat'])]);
-	save(fullfile(ReportLog_Dir, [ReportLog_Name, suffix_string, version_string, '.mat']), 'report_struct');
+	disp(['Saving parsed report file as ', fullfile(ReportLog_Dir, [ReportLog_name, suffix_string, version_string, '.mat'])]);
+	save(fullfile(ReportLog_Dir, [ReportLog_name, suffix_string, version_string, '.mat']), 'report_struct');
 end
 
 timestamps.(mfilename).end = toc(timestamps.(mfilename).start);
