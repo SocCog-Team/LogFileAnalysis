@@ -1,4 +1,4 @@
-function [ data_struct ] = fnParseEventIDETrackerLog_v01( TrackerLog_FQN, column_separator, force_number_of_columns, forced_header_string)
+function [ data_struct, version_string ] = fnParseEventIDETrackerLog_v01( TrackerLog_FQN, column_separator, force_number_of_columns, forced_header_string)
 %PARSE_PQLABTRACKER Summary of this function goes here
 % Parse EventIDE tracker element style report files:
 %   TrackerLog_FQN: the fully qualified name of the tracker log
@@ -58,6 +58,12 @@ mfilepath = fileparts(fq_mfilename);
 
 
 version_string = '.v006';	% we append this to the filename to figure out whether a report file should be re-parsed... this needs to be updated whenthe parser changes
+
+% in case 2 output arguments were given only return the version string
+if (nargout == 2)
+	return
+end
+
 
 % as long as the UserFields proxy variable of a tracker element is not written it is empty,
 % hence in the log it appears as ";;" at the position of the UserField
