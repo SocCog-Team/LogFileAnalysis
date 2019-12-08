@@ -523,8 +523,35 @@ if (add_corrected_tracker_timestamps)
 	end
 	
 	
-	[col_header, col_data] = fn_extract_corrected_eventIDE_timestamps(info.tracker_name, data_struct.data(:, data_struct.cn.EventIDE_TimeStamp), ...
-		data_struct.data(:, tracker_timestamp_column));
+	tracker_type = '';
+	% first deduce the type
+	if ~isempty(regexpi(info.tracker_name, 'PupilLabs', 'match'))
+		tracker_type = 'pupillabs';
+	end
+	if ~isempty(regexpi(info.tracker_name, 'EyeLink', 'match'))
+		tracker_type = 'eyelink';
+	end
+	if ~isempty(regexpi(info.tracker_name, 'PQLab', 'match'))
+		tracker_type = 'pqlab';
+	end
+	
+	% error out for unhandled types
+	switch tracker_type
+		case {'pupillabs', 'eyelink'}
+			% for the eyetrackers with reasonably reliable timestamps we
+			% only need eventIDe and tracker times for corrections
+			[col_header, col_data] = fn_extract_corrected_eventIDE_timestamps(info.tracker_name, data_struct.data(:, data_struct.cn.EventIDE_TimeStamp), ...
+				data_struct.data(:, tracker_timestamp_column));
+		case 'pqlab'
+			% here it gets complicated we need to look at some data columns
+			% as well as timing columns
+			% to deduce and track on and offsets for each finger... (we really only want/need the centroid/average)
+			
+		otherwise
+			error(['Encountered unhandled tracker type: ', tracker_name, ' please handle gracefully']);
+	end
+	
+	
 	if ~isempty(col_data)
 		% only add if we were successful
 		data_struct = fn_handle_data_struct('add_columns', data_struct, col_data, {col_header});
@@ -879,11 +906,15 @@ end
 if ~isempty(regexpi(tracker_name, 'EyeLink', 'match'))
 	tracker_type = 'eyelink';
 end
+if ~isempty(regexpi(tracker_name, 'PQLab', 'match'))
+	tracker_type = 'pqlab';
+end
 
 % error out for unhandled types
 switch tracker_type
 	case 'pupillabs'
 	case 'eyelink'
+	case 'pqlab'
 	
 	otherwise
 		error(['Encountered unhandled tracker type: ', tracker_name, ' please handle gracefully']);
