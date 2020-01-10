@@ -35,7 +35,7 @@ mfilepath = fileparts(fq_mfilename);
 calling_dir = pwd;
 
 save_matfile = 1;
-version_string = '.v012';	% we append this to the filename to figure out whether a report file should be re-parsed... this needs to be updated whenthe parser changes
+version_string = '.v013';	% we append this to the filename to figure out whether a report file should be re-parsed... this needs to be updated whenthe parser changes
 
 suffix_string = '';
 test_timing = 0;
@@ -833,23 +833,35 @@ if strcmp(RecordType, 'data')
                     % number, so undo the coma to dot conversion here
                     % NOTE: this also would need to be done on array types
 					if ~isempty(strfind(tmp_XY_string, '.'))
-						tmp_XY_string(strfind(tmp_XY_string, '.')) = ',';
+						tmp_XY_string(strfind(tmp_XY_string, '.')) = ' ';
 					end
 				end
 				% since about late 2019 early 2020 clPoint looks like  
 				% 960|500 (4.81Â°|90â„¢Â°), so the coma got replaced by
 				% a "pipe" | we need to handle this gracefully
 				if ~isempty(strfind(tmp_XY_string, '|'))
-					tmp_XY_string(strfind(tmp_XY_string, '|')) = ',';
+					tmp_XY_string(strfind(tmp_XY_string, '|')) = ' ';
 				end							
+				OutDataCells{end+1} = str2num(tmp_XY_string);
 				
-				OutDataCells{end+1} = str2num(tmp_XY_string);
 			case {'clSize'}
-				%"56x56 (6.74°, 6.74°)"
+				%"56x56 (6.74°, 6.74°)" or later "56|56 (6.74Â°|6.74Â°)"
 				tmp_SIZE_string = strtok(CurrentData, ' ('); % remove the DVA values
-				[tmp_WIDTH_string, tmp_HEIGHT_string] = strtok(CurrentData, 'x');
-				tmp_WIDTH_HEIGHT_string = [tmp_WIDTH_string, ', ', tmp_HEIGHT_string(2:end)];
-				OutDataCells{end+1} = str2num(tmp_XY_string);
+				% old
+				if ~isempty(strfind(CurrentData, 'x'))
+					[tmp_WIDTH_string, tmp_HEIGHT_string] = strtok(CurrentData, 'x');
+					tmp_WIDTH_HEIGHT_string = [tmp_WIDTH_string, ' ', tmp_HEIGHT_string(2:end)];
+				end
+				
+				% since about late 2019 early 2020 clSize looks like  
+				% 56|56 (6.74Â°|6.74Â°), so the x got replaced by
+				% a "pipe" | we need to handle this gracefully
+				if ~isempty(strfind(tmp_SIZE_string, '|'))
+					tmp_WIDTH_HEIGHT_string = tmp_SIZE_string;
+					tmp_WIDTH_HEIGHT_string(strfind(tmp_WIDTH_HEIGHT_string, '|')) = ' ';
+				end	
+				OutDataCells{end+1} = str2num(tmp_WIDTH_HEIGHT_string);
+				
 			case {'Boolean'}
 				% do not treat this as a String or indexed value
 				if strcmp(CurrentData, 'True')
