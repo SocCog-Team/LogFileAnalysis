@@ -824,7 +824,7 @@ if strcmp(RecordType, 'data')
 				OutDataCells{end+1} = CurrentData;
 			case {'clPoint'}
 				%"1182,445 (6.029°, 23.167?°)"
-				tmp_XY_string = strtok(CurrentData, ' ('); % remove the DVA values
+				tmp_XY_string = strtok(CurrentData, ' ('); % remove the DVA values as these are not reliable anyways
                 if (ReplaceDecimalComaWithDecimalDot)
                     % the above will look like: "1182.445 (6.029°, 23.167?°)"
                     % note the "1182.445" instead of "1182,445", this is
@@ -832,8 +832,17 @@ if strcmp(RecordType, 'data')
                     % two numbers, while N.N is interpreted as a decimal
                     % number, so undo the coma to dot conversion here
                     % NOTE: this also would need to be done on array types
-                    tmp_XY_string(strfind(tmp_XY_string, '.')) = ',';
-                end    
+					if ~isempty(strfind(tmp_XY_string, '.'))
+						tmp_XY_string(strfind(tmp_XY_string, '.')) = ',';
+					end
+				end
+				% since about late 2019 early 2020 clPoint looks like  
+				% 960|500 (4.81Â°|90â„¢Â°), so the coma got replaced by
+				% a "pipe" | we need to handle this gracefully
+				if ~isempty(strfind(tmp_XY_string, '|'))
+					tmp_XY_string(strfind(tmp_XY_string, '|')) = ',';
+				end							
+				
 				OutDataCells{end+1} = str2num(tmp_XY_string);
 			case {'clSize'}
 				%"56x56 (6.74°, 6.74°)"
