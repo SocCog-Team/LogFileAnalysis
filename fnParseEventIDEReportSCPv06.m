@@ -846,18 +846,18 @@ if strcmp(RecordType, 'data')
 				
 			case {'clSize'}
 				%"56x56 (6.74�, 6.74�)" or later "56|56 (6.74째|6.74째)"
-				tmp_SIZE_string = strtok(CurrentData, ' ('); % remove the DVA values
+				tmp_WIDTH_HEIGHT_string = strtok(CurrentData, ' ('); % remove the DVA values
 				% old
-				if ~isempty(strfind(CurrentData, 'x'))
-					[tmp_WIDTH_string, tmp_HEIGHT_string] = strtok(CurrentData, 'x');
-					tmp_WIDTH_HEIGHT_string = [tmp_WIDTH_string, ' ', tmp_HEIGHT_string(2:end)];
+				if ~isempty(strfind(tmp_WIDTH_HEIGHT_string, 'x'))
+					%[tmp_WIDTH_string, tmp_HEIGHT_string] = strtok(CurrentData, 'x');
+					%tmp_WIDTH_HEIGHT_string = [tmp_WIDTH_string, ' ', tmp_HEIGHT_string(2:end)];
+					tmp_WIDTH_HEIGHT_string(strfind(tmp_WIDTH_HEIGHT_string, 'x')) = ' ';
 				end
 				
 				% since about late 2019 early 2020 clSize looks like  
 				% 56|56 (6.74째|6.74째), so the x got replaced by
 				% a "pipe" | we need to handle this gracefully
-				if ~isempty(strfind(tmp_SIZE_string, '|'))
-					tmp_WIDTH_HEIGHT_string = tmp_SIZE_string;
+				if ~isempty(strfind(tmp_WIDTH_HEIGHT_string, '|'))
 					tmp_WIDTH_HEIGHT_string(strfind(tmp_WIDTH_HEIGHT_string, '|')) = ' ';
 				end	
 				OutDataCells{end+1} = str2num(tmp_WIDTH_HEIGHT_string);
