@@ -72,6 +72,11 @@ end
 % missing ones
 
 delete_txt_versions_of_gzip = 1; % delete the extracted txt file versions of gzipped ones to save space
+replace_decimal_coma_by_dot = 1;
+trackername_start_string = '.TID_';
+trackername_stop_string = '.trackerlog';
+
+
 fixup_userfield_columns = 2;
 delete_fixed_trackerlog = 1;    %TODO instead clone a header into the fixed data file, zip the original under a new name and save the fixed as the "normal" tracker log file
 expand_GLM_coefficients = 1;
@@ -113,7 +118,7 @@ current_line_number = 0; % to get the data offset from the top
 
 
 if (~exist('TrackerLog_FQN', 'var'))
-	[TrackerLog_Name, TrackerLog_Dir] = uigetfile('*trackerlog.txt', 'Select the tracker log file');
+	[TrackerLog_Name, TrackerLog_Dir] = uigetfile({'*trackerlog.txt';'*signallog.txt';'*trackerlog.txt.gz';'*signallog.txt.gz'}, 'Select the tracker log file');
 	TrackerLog_FQN = fullfile(TrackerLog_Dir, TrackerLog_Name);
 	save_matfile = 1;
 else
@@ -132,9 +137,9 @@ if strcmp(TrackerLog_ext, '.mat')
 	% it is current
 	data_struct = load(TrackerLog_FQN);
 	if ~isempty(regexp(TrackerLog_name, version_string))
-		disp(['Requested TrackerLog is a .mat file of the most recent version, just loading it...']);
+		disp(['Requested TrackerLog/Signallog is a .mat file of the most recent version, just loading it...']);
 	else
-		display(['WARNING: the requested TrackerLog (', TrackerLog_name, ') is not of the curreny version, still loading it...']);
+		display(['WARNING: the requested TrackerLog/Signallog (', TrackerLog_name, ') is not of the current version, still loading it...']);
 	end
 	return
 end
@@ -146,7 +151,7 @@ return_most_processed = 0;
 TrackerLog_FQN_dirstruct = dir(TrackerLog_FQN);
 if (isempty(TrackerLog_FQN_dirstruct))
 	disp(['File not found: ', TrackerLog_FQN]);
-	if ~isempty(regexp(TrackerLog_FQN, 'trackerlog$'))
+	if ~isempty(regexp(TrackerLog_FQN, 'trackerlog$')) || ~isempty(regexp(TrackerLog_FQN, 'signallog$'))
 		% the user requested a *.trackerlog, which means use the most
 		% processed version available
 		return_most_processed = 1;
@@ -192,8 +197,8 @@ if strcmp(orig_TrackerLog_ext, '.gz')
 	% only unzip if the unzipped file does not exist yet:
 	if (exist(TrackerLog_FQN, 'file') ~= 2)
 		% found a gziped file, now uncompress
-		disp(['Current trackerlog file: ', gzip_TrackerLog_FQN]);
-		disp(['Gunzipping the compressed trackerlog file, might take a while...']);
+		disp(['Current trackerlog/signallog file: ', gzip_TrackerLog_FQN]);
+		disp(['Gunzipping the compressed trackerlog/signallog file, might take a while...']);
 		gunzip(gzip_TrackerLog_FQN);
 	else
 		disp(['Gzipped log file selected: skipping the unzipping since unzipped version already exists,.']);
@@ -203,7 +208,7 @@ else
 	switch orig_TrackerLog_ext
 		case '.txt'
 			gzip_TrackerLog_FQN = [TrackerLog_FQN, '.gz'];
-		case '.trackerlog'
+		case {'.trackerlog', '.signallog'}
 			gzip_TrackerLog_FQN = [TrackerLog_FQN, '.txt.gz'];
 	end
 end
@@ -216,7 +221,7 @@ TmpTrackerLog_FQN = [TrackerLog_FQN, '.Fixed.txt'];
 gzip_TmpTrackerLog_FQN = [TmpTrackerLog_FQN, '.gz'];
 if ~exist(TmpTrackerLog_FQN, 'file')
 	if exist(gzip_TmpTrackerLog_FQN, 'file')
-		disp(['Gunzipping compressed fixed trackerlog: ', gzip_TmpTrackerLog_FQN])
+		disp(['Gunzipping compressed fixed trackerlog/signallog: ', gzip_TmpTrackerLog_FQN])
 		gunzip(gzip_TmpTrackerLog_FQN);
 	end
 end
@@ -225,19 +230,31 @@ end
 tmp_dir_TrackerLog_FQN = dir(TrackerLog_FQN);
 TrackerLog_size_bytes  = tmp_dir_TrackerLog_FQN.bytes;
 
-
 % default to semi-colon to separate the LogHeader and data lines
 if (~exist('column_separator', 'var')) || isempty(column_separator)
 	column_separator = ';';
 end
 
-if ~exist('force_number_of_columns', 'var')
+if ~exist('force_number_of_columns', 'var') || isempty(force_number_of_columns)
 	force_number_of_columns = [];
 end
 
-if ~exist('forced_header_string', 'var')
+if ~exist('forced_header_string', 'var') || isempty(forced_header_string)
 	forced_header_string = [];
 end
+
+% signallog files are more structured
+log_type = 'trackerlog';
+if ~isempty(regexp(TrackerLog_Name, 'signallog'))
+	log_type = 'signallog';
+	trackername_stop_string = '.signallog';
+	column_separator = ',';
+	replace_decimal_coma_by_dot = 0;
+	fixup_userfield_columns = 0;
+end
+% extract the tracker name from the file name
+info.tracker_name = fn_extract_trackername_from_filename(TrackerLog_Name, '.TID_', '.signallog');
+
 
 
 % open the file
@@ -256,22 +273,40 @@ while (~info_header_parsed)
 	current_line = fgetl(TrackerLog_fd);
 	info_header_line_list{end+1} = current_line;
 	current_line_number = current_line_number + 1;
-	[token, remain] = strtok(current_line, ':');
 	found_header_line = 0;
-	switch token
-		case 'Date and time'
-			DateVector = datevec(strtrim(remain(2:end)), 'yyyy.dd.mm HH:MM');
-			info.session_date_string = strtrim(remain(2:end)); %TODO: maybe clean up/ reconstitute from datevec?
-			info.session_date_vec = DateVector;
-			found_header_line = 1;
-		case 'Experiment'
-			info.experiment_eve = [strtrim(remain(2:end)), '.eve'];
-			found_header_line = 1;
-		case 'Tracker'
-			info.tracker_name = strtrim(remain(2:end));
-			found_header_line = 1;
+	switch log_type
+		case 'trackerlog'
+			[token, remain] = strtok(current_line, ':');
+			%found_header_line = 0;
+			switch token
+				case 'Date and time'
+					DateVector = datevec(strtrim(remain(2:end)), 'yyyy.dd.mm HH:MM');
+					info.session_date_string = strtrim(remain(2:end)); %TODO: maybe clean up/ reconstitute from datevec?
+					info.session_date_vec = DateVector;
+					found_header_line = 1;
+				case 'Experiment'
+					info.experiment_eve = [strtrim(remain(2:end)), '.eve'];
+					found_header_line = 1;
+				case 'Tracker'
+					info.tracker_name_from_filename = info.tracker_name;				
+					info.tracker_name = strtrim(remain(2:end));
+					found_header_line = 1;
+			end
+		case 'signallog'
+			% signal log header look different (line starting with [ are optional):
+			%[Title],20200117T114559.A_TestA.B_None.SCP_01
+			%[Patient ID],AccelerationSensor_Y, MotitorSpotDetector_LCD_level, TestSignal_5kHz
+			%Timestamp,Dev1/ai0,Dev1/ai1,Dev1/ai2,
+			[token, remain] = strtok(current_line, ']');
+			switch token
+				case '[Title'
+					info.title = remain(3:end);
+					found_header_line = 1;
+				case '[Patient ID'
+					info.patient_id = remain(3:end);
+					found_header_line = 1;
+			end	
 	end
-	
 	if (~found_header_line)
 		info_header_parsed = 1;
 	end
@@ -280,7 +315,7 @@ end
 % parse the LogHeader line (if it exists), we already have the current_line
 % NOTE we assume the string 'EventIDE TimeStamp' to be part of the LogHeader bot not
 % the data lines
-if ~isempty(strfind(current_line, 'EventIDE TimeStamp'))
+if ~isempty(strfind(current_line, 'EventIDE TimeStamp')) || ~isempty(strfind(current_line, 'Timestamp'))
 	[header, LogHeader_list, column_type_list, column_type_string, orig_LogHeader_line] = process_LogHeader(current_line, column_separator, force_number_of_columns, forced_header_string, 1);
 	info.LogHeader = LogHeader_list;
 	
@@ -309,7 +344,8 @@ data_start_line = current_line_number;
 n_cols = length(strfind(current_line, column_separator));
 n_commata = length(strfind(current_line, ','));
 
-if abs((n_commata - n_cols)/(n_cols)) <= 0.2
+% signal writer defaults to CSV so disable this heuristic for signallogs
+if (abs((n_commata - n_cols)/(n_cols)) <= 0.2) && replace_decimal_coma_by_dot
 	replace_coma_by_dot = 1;
 	disp(['It seems this log file uses commata as decimal separators, replace by dots...']);
 else
@@ -397,12 +433,27 @@ if (fixup_userfield_columns == 2) && (exist(TmpTrackerLog_FQN, 'file') == 2)
 	fclose(TrackerLog_fd);
 	TrackerLog_fd = fopen(TmpTrackerLog_FQN, 'r');
 	
-	% just skip over the header and start with the first data line
-	fseek(TrackerLog_fd, data_start_offset, 'bof');
-	if ismember(add_method, {'add_row_to_global_struct', 'add_row'})
-		current_line = fgetl(TrackerLog_fd); % we need this for the next section where we want to start with a loaded log line
-	end
+% 	% just skip over the header and start with the first data line
+% 	fseek(TrackerLog_fd, data_start_offset, 'bof');
+% 	if ismember(add_method, {'add_row_to_global_struct', 'add_row'})
+% 		current_line = fgetl(TrackerLog_fd); % we need this for the next section where we want to start with a loaded log line
+% 	end
 end
+
+% just skip over the header and start with the first data line
+fseek(TrackerLog_fd, 0, 'eof');
+TrackerLog_fd_size = ftell(TrackerLog_fd);
+if ((TrackerLog_fd_size - data_start_offset) < 50)
+	disp('Data file contains less than 50 data bytes, aborting the parser.');
+	data_struct.data = [];
+	return
+end
+
+status = fseek(TrackerLog_fd, data_start_offset, 'bof');
+if ismember(add_method, {'add_row_to_global_struct', 'add_row'})
+	current_line = fgetl(TrackerLog_fd); % we need this for the next section where we want to start with a loaded log line
+end
+
 
 
 switch add_method
@@ -480,7 +531,7 @@ switch add_method
 			end
 		end
 	case 'textscan'
-		if (exist(TmpTrackerLog_FQN, 'file') == 2)
+		if (exist(TmpTrackerLog_FQN, 'file') == 2) || (fixup_userfield_columns == 0)
 			% if the following fails chech whether the type assignments in
 			% tmp_fast.column_type_list are correct
 			TrackerLogCell = textscan(TrackerLog_fd, tmp_fast.column_type_string, 'Delimiter', column_separator, 'HeaderLines', length(info_header_line_list), 'ReturnOnError', 0);
@@ -516,6 +567,7 @@ if (add_corrected_tracker_timestamps)
 	% we need the tracker type the event ide time stamp and tracker
 	% timestamp columns
 	
+	tracker_timestamp_column = [];
 	if isfield(data_struct.cn, 'Tracker_Time_Stamp')
 		tracker_timestamp_column = data_struct.cn.Tracker_Time_Stamp;
 	elseif isfield(data_struct.cn, 'Tracker_time_stamp')
@@ -534,6 +586,12 @@ if (add_corrected_tracker_timestamps)
 	if ~isempty(regexpi(info.tracker_name, 'PQLab', 'match'))
 		tracker_type = 'pqlab';
 	end
+	if ~isempty(regexpi(info.tracker_name, 'NISignalFileWriter', 'match'))
+		tracker_type = 'nisignalfilewriter';
+	end
+	
+	
+	
 	
 	% error out for unhandled types
 	switch tracker_type
@@ -546,6 +604,16 @@ if (add_corrected_tracker_timestamps)
 			% here it gets complicated we need to look at some data columns
 			% as well as timing columns
 			% to deduce and track on and offsets for each finger... (we really only want/need the centroid/average)
+
+		case 'nisignalfilewriter';
+			% here the issue is that the spacing og the NI sampling
+			% probably is relative precise, but the event ide time stamps
+			% are not, so we simply try to spece the error out, by taking
+			% first and last timestamps and just interpoate the values
+			% inbetween
+			tracker_timestamp_column = data_struct.cn.EventIDE_TimeStamp;
+			[col_header, col_data] = fn_extract_corrected_eventIDE_timestamps(info.tracker_name, data_struct.data(:, data_struct.cn.EventIDE_TimeStamp), ...
+				data_struct.data(:, tracker_timestamp_column));
 			
 		otherwise
 			error(['Encountered unhandled tracker type: ', tracker_name, ' please handle gracefully']);
@@ -665,6 +733,18 @@ while (~LogHeader_parsed)
 				column_type_list{end + 1} = 'string';
 				column_type_string = [column_type_string, '%s'];
 			end
+		
+		% signallog csv calls the Timestamp column Timestamp, unlike what
+		% the log designer defaults to for tracker elements, so
+		% canonicalize this
+		case {'Timestamp'}
+			% rename to the canonical "EventIDE TimeStamp"
+			current_raw_column_name = sanitize_col_name_for_matlab('EventIDE TimeStamp');
+			header{end+1} = current_raw_column_name;
+			column_type_list{end + 1} = 'double';   % matlab default
+			column_type_string = [column_type_string, '%f'];
+	
+			
 		otherwise
 			% default to floating point numbers...
 			current_raw_column_name = sanitize_col_name_for_matlab(current_raw_column_name);
@@ -778,8 +858,8 @@ end
 function [ sanitized_column_name ]  = sanitize_col_name_for_matlab( raw_column_name )
 % some characters are not really helpful inside matlab variable names, so
 % replace them with something that should not cause problems
-taboo_char_list =		{' ', '-', '.', '='};
-replacement_char_list = {'_', '_', '_dot_', '_eq_'};
+taboo_char_list =		{' ', '-', '.', '=', '/'};
+replacement_char_list = {'_', '_', '_dot_', '_eq_', '_'};
 
 taboo_first_char_list = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9'};
 replacement_firts_char_list = {'Zero', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'};
@@ -909,12 +989,18 @@ end
 if ~isempty(regexpi(tracker_name, 'PQLab', 'match'))
 	tracker_type = 'pqlab';
 end
+if ~isempty(regexpi(tracker_name, 'NISignalFileWriter', 'match'))
+	tracker_type = 'nisignalfilewriter';
+end
+
+
 
 % error out for unhandled types
 switch tracker_type
 	case 'pupillabs'
 	case 'eyelink'
 	case 'pqlab'
+	case 'nisignalfilewriter'
 	
 	otherwise
 		error(['Encountered unhandled tracker type: ', tracker_name, ' please handle gracefully']);
@@ -949,11 +1035,28 @@ if (closest_matching_first_Tracker_ts ~= first_Tracker_ts)
 	disp('fn_extract_corrected_eventIDE_timestamps: first timestamps of eventide and tracker not aligned, expected for PupilLabs data.');
 end
 
-
-
 ts_offset = first_EventIDE_ts;
 ts_scale = (closest_matching_last_EventIDE_ts - first_EventIDE_ts) / (last_Tracker_ts - closest_matching_first_Tracker_ts);
-corrected_EventIDE_TimeStamp_list = (Tracker_Time_Stamp_list - closest_matching_first_Tracker_ts) * ts_scale + ts_offset;
+
+% the actual correction will be different for the different trackers
+switch tracker_type
+	case 'pupillabs'
+	case 'eyelink'
+		corrected_EventIDE_TimeStamp_list = (Tracker_Time_Stamp_list - closest_matching_first_Tracker_ts) * ts_scale + ts_offset;
+	case 'pqlab'
+	case 'nisignalfilewriter'
+		% here we only have EventIDE Timestamps, but these are not equally
+		% spaced temporally, as they should (assuming the NI card has a
+		% reasonably stable clock) so just interpolate eventIDE timestamps
+		% between start and end
+		ts_range = last_EventIDE_ts - first_EventIDE_ts;
+		n_timestamps = size(Tracker_Time_Stamp_list, 1);
+		ts_scale = ts_range / (n_timestamps - 1);
+		corrected_EventIDE_TimeStamp_list = ((0:1:n_timestamps-1)' * ts_scale) + ts_offset;
+	otherwise
+		error(['Encountered unhandled tracker type: ', tracker_name, ' please handle gracefully']);
+end
+
 
 
 if (debug)
@@ -967,11 +1070,13 @@ if (debug)
 	plot(sort(corrected_EventIDE_TimeStamp_list) - corrected_EventIDE_TimeStamp_list(1), 'Color', [0 0 1]);
 	legend_text{end+1} = 'sorted  corrected_EventIDE_timestamps';
 	legend(legend_text);
+	title('original and corrected timestamp series (offset by smalles timestamp)');
 	hold off
 	
 	subplot(4, 1, 2)
 	hold on 
 	plot((EventIDE_TimeStamp_list - EventIDE_TimeStamp_list(1)) - (corrected_EventIDE_TimeStamp_list - corrected_EventIDE_TimeStamp_list(1)));
+	title('original and corrected timestamp series');
 	hold off
 
 	subplot(4, 1, 3)
@@ -983,6 +1088,34 @@ if (debug)
 	subplot(4, 1, 4)
 	h3 = histogram((EventIDE_TimeStamp_list - EventIDE_TimeStamp_list(1)) - (sort(corrected_EventIDE_TimeStamp_list) - corrected_EventIDE_TimeStamp_list(1)));
 end
+
+return
+end
+
+
+
+function [ tracker_name ] = fn_extract_trackername_from_filename( TrackerLog_Name, trackername_start_string, trackername_stop_string )
+%tracker_start_string = '.TID_';
+%tracker_stop_string = '.signallog';
+tracker_name = [];
+
+proto_start_idx = strfind(TrackerLog_Name, trackername_start_string);
+if ~isempty(proto_start_idx)
+	start_idx = proto_start_idx + length(trackername_start_string);
+else
+	disp(['Tracker name start identifier: ', trackername_start_string, ' not found in: ', TrackerLog_Name]);
+	return
+end
+
+proto_stop_idx = strfind(TrackerLog_Name, trackername_stop_string);
+if ~isempty(proto_stop_idx)
+	stop_idx = proto_stop_idx - 1;
+else
+	disp(['Tracker name stop identifier: ', trackername_stop_string, ' not found in: ', TrackerLog_Name]);
+	return
+end
+
+tracker_name = TrackerLog_Name(start_idx:stop_idx);
 
 return
 end
