@@ -141,6 +141,7 @@ ProximitySensors_struct = struct();
 Enums_struct = struct();	% this collects all structs for individual enums, in uniquelist format, a cell array of the names as strings with EnumName as list name
 TmpEnum_struct = struct();	% lets use the existing machinery to parse
 Screen_struct = struct();
+Render_struct = struct();
 Timing_struct = struct();
 Session_struct = struct();
 SessionByTrial_struct = struct();
@@ -265,6 +266,10 @@ while (~feof(ReportLog_fd))
 			Screen_struct = fnParseHeaderTypeDataRecord(Screen_struct, current_line, 'SCREEN', ItemSeparator, ArraySeparator);
 			FoundUserData = 1;
 			continue
+		case {'RENDER', 'RENDERHEADER', 'RENDERTYPES'}
+			Render_struct = fnParseHeaderTypeDataRecord(Render_struct, current_line, 'RENDER', ItemSeparator, ArraySeparator);
+			FoundUserData = 1;
+			continue
 		case {'TRIAL', 'TRIALHEADER', 'TRIALTYPES', '\nTRIAL', '\nTRIALHEADER', '\nTRIALTYPES'}
 			data_struct = fnParseHeaderTypeDataRecord(data_struct, current_line, 'TRIAL', ItemSeparator, ArraySeparator);
 			FoundUserData = 1;
@@ -370,6 +375,9 @@ if ~isempty(fieldnames(Enums_struct))
 	% corresponding _idx column (add one to the C# indices), add the enum
 	% header to the unique_list with the appropriate name
 	data_struct = fnAddEnumsToDataStruct(data_struct, Enums_struct, {'A_', 'B_'}, {'s'});
+	if ~isempty(fieldnames(Render_struct))
+		Render_struct = fnAddEnumsToDataStruct(Render_struct, Enums_struct, {''}, {'s'});
+	end
 end
 
 
@@ -398,6 +406,7 @@ report_struct.LoggingInfo = LoggingInfo_struct;
 report_struct.StartUpVariables = StartUpVariables_struct;
 report_struct.ProximitySensors = ProximitySensors_struct;
 report_struct.Screen = Screen_struct;
+report_struct.Render = Render_struct;
 report_struct.Timing = Timing_struct;
 report_struct.Session = Session_struct;
 report_struct.SessionByTrial = SessionByTrial_struct;
@@ -1083,6 +1092,10 @@ function [ data_struct ] = fnAddEnumsToDataStruct( data_struct, Enums_struct, Da
 % EnumKeyIgnoredSuffixList list of suffixes of the EnumName that does not
 % match the data_struct.header
 
+if isempty(fieldnames(data_struct))
+	disp(['fnAddEnumsToDataStruct: called with empty data_struct, returning without doing anything.']);
+	return
+end
 
 EnumNamesList = fieldnames(Enums_struct);
 
