@@ -74,6 +74,9 @@ end
 %  	'20170707', '20170707T111529.A_Magnus.B_None.SCP_01', '20170707T111529.A_Magnus.B_None.SCP_01.log'));
 
 
+% % example test for triallog handling
+tmp_data = fnParseEventIDEReportSCPv06( fullfile(BaseDir, 'SCP_DATA', 'SCP-CTRL-01', 'SESSIONLOGS', ...
+  	'2019', '190913', '20190913T124038.A_Elmo.B_Linus.SCP_01.sessiondir', '20190913T124038.A_Elmo.B_Linus.SCP_01.triallog'));
 
 
 end
