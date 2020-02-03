@@ -57,7 +57,7 @@ fq_mfilename = mfilename('fullpath');
 mfilepath = fileparts(fq_mfilename);
 
 
-version_string = '.v006';	% we append this to the filename to figure out whether a report file should be re-parsed... this needs to be updated whenthe parser changes
+version_string = '.v007';	% we append this to the filename to figure out whether a report file should be re-parsed... this needs to be updated whenthe parser changes
 
 % in case 2 output arguments were given only return the version string
 if (nargout == 2)
@@ -253,7 +253,7 @@ if ~isempty(regexp(TrackerLog_Name, 'signallog'))
 	fixup_userfield_columns = 0;
 end
 % extract the tracker name from the file name
-info.tracker_name = fn_extract_trackername_from_filename(TrackerLog_Name, '.TID_', '.signallog');
+info.tracker_name = fn_extract_trackername_from_filename(TrackerLog_Name, '.TID_', ['.', log_type]);
 
 
 
@@ -394,7 +394,14 @@ if (fixup_userfield_columns == 2) && (exist(TmpTrackerLog_FQN, 'file') ~= 2)
 					% empty data fields which leads to multiple
 					% replacements by this code, these errors are real and
 					% impossible to fix without additional information
-					current_line = strrep(current_line, [column_separator, column_separator], repmat(column_separator, [1 (2 + length(tmp_fast.header) - length(separator_idx))]));
+					% the following will replace each ;; with 
+					%current_line = strrep(current_line, [column_separator, column_separator], repmat(column_separator, [1 (2 + length(tmp_fast.header) - length(separator_idx))]));
+					
+					% here we just assume that the UserField was at the last
+					% position and just append the missing fields to the
+					% end
+					n_missing_cols = length(tmp_fast.header) - length(separator_idx);
+					current_line = [current_line, repmat(column_separator, [1 n_missing_cols])];				
 				end
 			end
 		end
@@ -446,6 +453,7 @@ TrackerLog_fd_size = ftell(TrackerLog_fd);
 if ((TrackerLog_fd_size - data_start_offset) < 50)
 	disp('Data file contains less than 50 data bytes, aborting the parser.');
 	data_struct.data = [];
+	data_struct.info = info;
 	return
 end
 
@@ -604,7 +612,7 @@ if (add_corrected_tracker_timestamps)
 			% here it gets complicated we need to look at some data columns
 			% as well as timing columns
 			% to deduce and track on and offsets for each finger... (we really only want/need the centroid/average)
-
+			col_data = [];
 		case 'nisignalfilewriter';
 			% here the issue is that the spacing og the NI sampling
 			% probably is relative precise, but the event ide time stamps
@@ -621,8 +629,13 @@ if (add_corrected_tracker_timestamps)
 	
 	
 	if ~isempty(col_data)
+		disp('Corrected EventIDE_TimeStamp based on tracker timestamps or sample clock precision.');
 		% only add if we were successful
 		data_struct = fn_handle_data_struct('add_columns', data_struct, col_data, {col_header});
+		% save the original uncorrected Timestamps
+		data_struct = fn_handle_data_struct('add_columns', data_struct, data_struct.data(:, data_struct.cn.EventIDE_TimeStamp), {'UncorrectedEventIDE_TimeStamp'});
+		% now move the corrected timestamps to the canonical timestamp column
+		data_struct.data(:, data_struct.cn.EventIDE_TimeStamp) = data_struct.data(:, data_struct.cn.(col_header));
 	end
 end
 
