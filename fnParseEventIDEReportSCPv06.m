@@ -142,6 +142,7 @@ Enums_struct = struct();	% this collects all structs for individual enums, in un
 TmpEnum_struct = struct();	% lets use the existing machinery to parse
 Screen_struct = struct();
 Render_struct = struct();
+ParadigmState_struct = struct();
 Timing_struct = struct();
 Session_struct = struct();
 SessionByTrial_struct = struct();
@@ -270,6 +271,10 @@ while (~feof(ReportLog_fd))
 			Render_struct = fnParseHeaderTypeDataRecord(Render_struct, current_line, 'RENDER', ItemSeparator, ArraySeparator);
 			FoundUserData = 1;
 			continue
+		case {'PARADIGMSTATE', 'PARADIGMSTATEHEADER', 'PARADIGMSTATETYPES'}
+			ParadigmState_struct = fnParseHeaderTypeDataRecord(ParadigmState_struct, current_line, 'PARADIGMSTATE', ItemSeparator, ArraySeparator);
+			FoundUserData = 1;
+			continue
 		case {'TRIAL', 'TRIALHEADER', 'TRIALTYPES', '\nTRIAL', '\nTRIALHEADER', '\nTRIALTYPES'}
 			data_struct = fnParseHeaderTypeDataRecord(data_struct, current_line, 'TRIAL', ItemSeparator, ArraySeparator);
 			FoundUserData = 1;
@@ -378,6 +383,9 @@ if ~isempty(fieldnames(Enums_struct))
 	if ~isempty(fieldnames(Render_struct))
 		Render_struct = fnAddEnumsToDataStruct(Render_struct, Enums_struct, {''}, {'s'});
 	end
+	if ~isempty(fieldnames(ParadigmState_struct))
+		ParadigmState_struct = fnAddEnumsToDataStruct(ParadigmState_struct, Enums_struct, {''}, {'s'});
+	end
 end
 
 
@@ -407,6 +415,7 @@ report_struct.StartUpVariables = StartUpVariables_struct;
 report_struct.ProximitySensors = ProximitySensors_struct;
 report_struct.Screen = Screen_struct;
 report_struct.Render = Render_struct;
+report_struct.ParadigmState = ParadigmState_struct;
 report_struct.Timing = Timing_struct;
 report_struct.Session = Session_struct;
 report_struct.SessionByTrial = SessionByTrial_struct;
