@@ -143,6 +143,7 @@ TmpEnum_struct = struct();	% lets use the existing machinery to parse
 Screen_struct = struct();
 Render_struct = struct();
 ParadigmState_struct = struct();
+DigitalOutMessage_struct = struct();
 Timing_struct = struct();
 Session_struct = struct();
 SessionByTrial_struct = struct();
@@ -275,6 +276,10 @@ while (~feof(ReportLog_fd))
 			ParadigmState_struct = fnParseHeaderTypeDataRecord(ParadigmState_struct, current_line, 'PARADIGMSTATE', ItemSeparator, ArraySeparator);
 			FoundUserData = 1;
 			continue
+		case {'DIGITALOUTMESSAGE', 'DIGITALOUTMESSAGEHEADER', 'DIGITALOUTMESSAGETYPES'}
+			DigitalOutMessage_struct = fnParseHeaderTypeDataRecord(DigitalOutMessage_struct, current_line, 'DIGITALOUTMESSAGE', ItemSeparator, ArraySeparator);
+			FoundUserData = 1;
+			continue
 		case {'TRIAL', 'TRIALHEADER', 'TRIALTYPES', '\nTRIAL', '\nTRIALHEADER', '\nTRIALTYPES'}
 			data_struct = fnParseHeaderTypeDataRecord(data_struct, current_line, 'TRIAL', ItemSeparator, ArraySeparator);
 			FoundUserData = 1;
@@ -386,6 +391,9 @@ if ~isempty(fieldnames(Enums_struct))
 	if ~isempty(fieldnames(ParadigmState_struct))
 		ParadigmState_struct = fnAddEnumsToDataStruct(ParadigmState_struct, Enums_struct, {''}, {'s'});
 	end
+	if ~isempty(fieldnames(DigitalOutMessage_struct))
+		DigitalOutMessage_struct = fnAddEnumsToDataStruct(DigitalOutMessage_struct, Enums_struct, {''}, {'s'});
+	end
 end
 
 
@@ -416,6 +424,7 @@ report_struct.ProximitySensors = ProximitySensors_struct;
 report_struct.Screen = Screen_struct;
 report_struct.Render = Render_struct;
 report_struct.ParadigmState = ParadigmState_struct;
+report_struct.DigitalOutMessage = DigitalOutMessage_struct;
 report_struct.Timing = Timing_struct;
 report_struct.Session = Session_struct;
 report_struct.SessionByTrial = SessionByTrial_struct;
