@@ -1058,14 +1058,55 @@ switch tracker_type
 		corrected_EventIDE_TimeStamp_list = (Tracker_Time_Stamp_list - closest_matching_first_Tracker_ts) * ts_scale + ts_offset;
 	case 'pqlab'
 	case 'nisignalfilewriter'
-		% here we only have EventIDE Timestamps, but these are not equally
-		% spaced temporally, as they should (assuming the NI card has a
-		% reasonably stable clock) so just interpolate eventIDE timestamps
-		% between start and end
+		
 		ts_range = last_EventIDE_ts - first_EventIDE_ts;
 		n_timestamps = size(Tracker_Time_Stamp_list, 1);
 		ts_scale = ts_range / (n_timestamps - 1);
 		corrected_EventIDE_TimeStamp_list = ((0:1:n_timestamps-1)' * ts_scale) + ts_offset;
+	
+		% here we only have EventIDE Timestamps, but these are not equally
+		% spaced temporally, as they should (assuming the NI card has a
+		% reasonably stable clock) so just interpolate eventIDE timestamps
+		% between start and end
+		% but EventIDE might start with a different sampling rate, so try
+		% to correct for that as well
+		sample_interval_list = diff(Tracker_Time_Stamp_list);
+		first_sample_interval = sample_interval_list(1);
+		last_sample_interval = sample_interval_list(end);
+		n_samples = size(sample_interval_list, 1);
+		% assume that at most 1/3 of the samples are from the wrong rate
+		reliable_min = min(sample_interval_list(floor(n_samples*0.33):end));
+		reliable_mean = mean(sample_interval_list(floor(n_samples*0.33):end)); 
+		
+		% this is just a bad heuristic to catch too high/low initial sampling
+		if (first_sample_interval < reliable_mean) && (2 * first_sample_interval < reliable_mean)
+			corrected_EventIDE_TimeStamp_list = ones(size(corrected_EventIDE_TimeStamp_list)) * -1000;
+			i_bad_interval_sample = 0;
+			% find the initial stretch of too low values
+			for i_bad_interval_sample = 1 : n_samples
+				if (2 * sample_interval_list(i_bad_interval_sample) < reliable_mean)
+				else
+					% break so i_sample contains the last offending
+					% interval idx
+					break
+				end
+			end
+			
+			rate_change_idx = i_bad_interval_sample;
+			% there was a rate switch, so adjust both parts independently
+			rate_change_ts = Tracker_Time_Stamp_list(rate_change_idx+1);
+			mean_pre_switch_interval = mean(sample_interval_list(1:rate_change_idx));
+			corrected_EventIDE_TimeStamp_list(1:rate_change_idx) = (0:1:rate_change_idx-1)' * mean_pre_switch_interval + ts_offset;
+			
+			mean_post_switch_interval = mean(sample_interval_list(rate_change_idx+1 : end));
+			corrected_EventIDE_TimeStamp_list(rate_change_idx+1 : end) = ((0:1:(n_timestamps - rate_change_idx-1))' * mean_post_switch_interval) + rate_change_ts;	
+		end
+				
+		% this is just a bad heuristic to catch too high/low initial sampling
+		if (first_sample_interval > reliable_mean) && (2 * first_sample_interval > reliable_mean)
+			error('Not implemented yet');
+		end
+		
 	otherwise
 		error(['Encountered unhandled tracker type: ', tracker_name, ' please handle gracefully']);
 end
