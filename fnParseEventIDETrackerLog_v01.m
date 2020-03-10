@@ -1068,7 +1068,7 @@ switch tracker_type
 		% spaced temporally, as they should (assuming the NI card has a
 		% reasonably stable clock) so just interpolate eventIDE timestamps
 		% between start and end
-		% but EventIDE might start with a different sampling rate, so try
+		% but EventIDE might start with a different (arbitrary?) sampling rate, so try
 		% to correct for that as well
 		sample_interval_list = diff(Tracker_Time_Stamp_list);
 		first_sample_interval = sample_interval_list(1);
@@ -1078,13 +1078,14 @@ switch tracker_type
 		reliable_min = min(sample_interval_list(floor(n_samples*0.33):end));
 		reliable_mean = mean(sample_interval_list(floor(n_samples*0.33):end)); 
 		
+		pre_rate_to_main_rate_factor = 1.5;
 		% this is just a bad heuristic to catch too high/low initial sampling
-		if (first_sample_interval < reliable_mean) && (2 * first_sample_interval < reliable_mean)
+		if (first_sample_interval < reliable_mean) && (pre_rate_to_main_rate_factor * first_sample_interval < reliable_mean)
 			corrected_EventIDE_TimeStamp_list = ones(size(corrected_EventIDE_TimeStamp_list)) * -1000;
 			i_bad_interval_sample = 0;
 			% find the initial stretch of too low values
 			for i_bad_interval_sample = 1 : n_samples
-				if (2 * sample_interval_list(i_bad_interval_sample) < reliable_mean)
+				if (pre_rate_to_main_rate_factor * sample_interval_list(i_bad_interval_sample) < reliable_mean)
 				else
 					% break so i_sample contains the last offending
 					% interval idx
