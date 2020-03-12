@@ -57,7 +57,7 @@ fq_mfilename = mfilename('fullpath');
 mfilepath = fileparts(fq_mfilename);
 
 
-version_string = '.v007';	% we append this to the filename to figure out whether a report file should be re-parsed... this needs to be updated whenthe parser changes
+version_string = '.v008';	% we append this to the filename to figure out whether a report file should be re-parsed... this needs to be updated whenthe parser changes
 
 % in case 2 output arguments were given only return the version string
 if (nargout == 2)
@@ -636,6 +636,18 @@ if (add_corrected_tracker_timestamps)
 		data_struct = fn_handle_data_struct('add_columns', data_struct, data_struct.data(:, data_struct.cn.EventIDE_TimeStamp), {'UncorrectedEventIDE_TimeStamp'});
 		% now move the corrected timestamps to the canonical timestamp column
 		data_struct.data(:, data_struct.cn.EventIDE_TimeStamp) = data_struct.data(:, data_struct.cn.(col_header));
+		% in case we resort we want/need to preserve the original sequence,
+		% and EventIDE_TimeStamp is not guaranteed to be strongly monotonic
+		% and might contain multiple rows with same timestamp
+		data_struct = fn_handle_data_struct('add_columns', data_struct, (1:1:size(data_struct.data, 1))', {'OriginalRowOrder'});
+		
+		% potentially re-sort
+		[sorted_col_data, sort_idx] = sort(col_data);
+		if ~isequal(sorted_col_data, col_data)
+			disp('Corrected timestamp series is not temporally montonic, re-sorting the full data-table.');
+			data_struct.data = data_struct.data(sort_idx, :);
+		end
+		
 	end
 end
 
@@ -1054,6 +1066,9 @@ ts_scale = (closest_matching_last_EventIDE_ts - first_EventIDE_ts) / (last_Track
 % the actual correction will be different for the different trackers
 switch tracker_type
 	case 'pupillabs'
+		% pupillabs data is unordered, but the main idea about aligning the
+		% two timestamp series still should apply.
+		corrected_EventIDE_TimeStamp_list = (Tracker_Time_Stamp_list - closest_matching_first_Tracker_ts) * ts_scale + ts_offset;
 	case 'eyelink'
 		corrected_EventIDE_TimeStamp_list = (Tracker_Time_Stamp_list - closest_matching_first_Tracker_ts) * ts_scale + ts_offset;
 	case 'pqlab'
