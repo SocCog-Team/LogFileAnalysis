@@ -545,8 +545,11 @@ switch add_method
 			TrackerLogCell = textscan(TrackerLog_fd, tmp_fast.column_type_string, 'Delimiter', column_separator, 'HeaderLines', length(info_header_line_list), 'ReturnOnError', 0);
 			tmpToc = toc(timestamps.(mfilename).start);
 			disp(['Trackerlog textscan took: ', num2str(tmpToc), ' seconds (', num2str(floor(tmpToc / 60), '%3.0f'),' minutes, ', num2str(tmpToc - (60 * floor(tmpToc / 60))),' seconds)']);
-			data_struct = fnConvertTextscanOutputToDataStruct(TrackerLogCell, tmp_fast.header, tmp_fast.column_type_list, expand_GLM_coefficients, replace_coma_by_dot, OutOfBoundsValue);
-			% now turn this into a proper data_struct
+			% do not try to convert empty log files
+			if ~isempty(TrackerLogCell{1})
+				data_struct = fnConvertTextscanOutputToDataStruct(TrackerLogCell, tmp_fast.header, tmp_fast.column_type_list, expand_GLM_coefficients, replace_coma_by_dot, OutOfBoundsValue);
+				% now turn this into a proper data_struct
+			end
 		end
 end
 
@@ -725,7 +728,7 @@ while (~LogHeader_parsed)
 	% some column names are special
 	switch current_raw_column_name
 		% put all named string columns here
-		case {'Current Event', 'Paradigm', 'DebugInfo', 'Multitouch mode', 'Sample Type', 'Fiducial Surface', 'Detection Method', 'Source ID'}
+		case {'Current Event', 'Paradigm', 'DebugInfo', 'Multitouch mode', 'Sample Type', 'Fiducial Surface', 'Detection Method'} % 'Source ID'
 			current_raw_column_name = sanitize_col_name_for_matlab(current_raw_column_name);
 			current_raw_column_name = [current_raw_column_name, '_idx'];
 			header{end+1} = current_raw_column_name;
@@ -1003,6 +1006,11 @@ debug = 1;
 col_header = 'Tracker_corrected_EventIDE_TimeStamp';
 corrected_EventIDE_TimeStamp_list = [];
 
+% gracefully deal with empty trackerlogs
+if isempty(EventIDE_TimeStamp_list)
+	return
+end
+	
 tracker_type = '';
 % first deduce the type
 if ~isempty(regexpi(tracker_name, 'PupilLabs', 'match'))
@@ -1093,7 +1101,7 @@ switch tracker_type
 		reliable_min = min(sample_interval_list(floor(n_samples*0.33):end));
 		reliable_mean = mean(sample_interval_list(floor(n_samples*0.33):end)); 
 		
-		pre_rate_to_main_rate_factor = 1.5;
+		pre_rate_to_main_rate_factor = 1.2;
 		% this is just a bad heuristic to catch too high/low initial sampling
 		if (first_sample_interval < reliable_mean) && (pre_rate_to_main_rate_factor * first_sample_interval < reliable_mean)
 			corrected_EventIDE_TimeStamp_list = ones(size(corrected_EventIDE_TimeStamp_list)) * -1000;
@@ -1109,6 +1117,7 @@ switch tracker_type
 			end
 			
 			rate_change_idx = i_bad_interval_sample;
+			disp(['Detected apparent rate change at around sample ', num2str(rate_change_idx+1)]);
 			% there was a rate switch, so adjust both parts independently
 			rate_change_ts = Tracker_Time_Stamp_list(rate_change_idx+1);
 			mean_pre_switch_interval = mean(sample_interval_list(1:rate_change_idx));
