@@ -260,10 +260,18 @@ if iscell(new_row_data)
 			n_cols_in_cur_cell = size(cur_data, 2);
 			data_struct.data(data_struct.first_empty_row_idx, cur_col_idx : cur_col_idx + n_cols_in_cur_cell - 1) = cur_data;
 		end
-		
+				
 		% accept strings for _idx columns
 		if ischar(cur_data)
 			cur_col_name = data_struct.header{cur_col_idx};
+			if isempty(cur_data)
+				% this catches potentially empty arras which eventIDE
+				% exports as ; ; and we import as empty string (''), once
+				% the strings are parsed that will need disentangling...
+				disp(['Found empty column data for ', cur_col_name, ', replacing by EMPTY']);
+				cur_data = 'EMPTY';
+			end
+			
 			if (length(cur_col_name) > 3) && strcmp('_idx', cur_col_name(end-3:end))
 				n_cols_in_cur_cell = size(cur_data, 1);
 				[numeric_idx_value, data_struct.unique_lists.(cur_col_name(1:end-4))] = local_get_idx_in_unique_list(cur_data, data_struct.unique_lists.(cur_col_name(1:end-4)));
