@@ -95,7 +95,8 @@ end
 if strcmp(ReportLog_ext, '.mat')
 	% this seems to be an existing parsed trackerlog so just read it in if
 	% it is current
-	report_struct = load(ReportLog_FQN);
+	%report_struct = load(ReportLog_FQN);
+	load(ReportLog_FQN);
 
 	if ~isempty(regexp(ReportLog_name, version_string))
 		disp(['Requested ReportLog is a .mat file of the most recent version, just loading it...']);
@@ -144,6 +145,11 @@ Screen_struct = struct();
 Render_struct = struct();
 ParadigmState_struct = struct();
 DigitalOutMessage_struct = struct();
+DigitalOutOctet_struct = struct();
+PhotoDiodeDriver_struct = struct();
+RendererState_struct = struct();
+PhotoDiodeRenderer_struct = struct();
+TrialTime_struct = struct();
 Timing_struct = struct();
 Session_struct = struct();
 SessionByTrial_struct = struct();
@@ -280,10 +286,31 @@ while (~feof(ReportLog_fd))
 			DigitalOutMessage_struct = fnParseHeaderTypeDataRecord(DigitalOutMessage_struct, current_line, 'DIGITALOUTMESSAGE', ItemSeparator, ArraySeparator);
 			FoundUserData = 1;
 			continue
+		case {'DIGITALOUTOCTETMESSAGE', 'DIGITALOUTOCTETMESSAGEHEADER', 'DIGITALOUTOCTETMESSAGETYPES'}
+			DigitalOutOctet_struct = fnParseHeaderTypeDataRecord(DigitalOutOctet_struct, current_line, 'DIGITALOUTOCTETMESSAGE', ItemSeparator, ArraySeparator);
+			FoundUserData = 1;
+			continue
+		case {'PHOTOLEDDRIVER', 'PHOTOLEDDRIVERHEADER', 'PHOTOLEDDRIVERTYPES'}
+			PhotoDiodeDriver_struct = fnParseHeaderTypeDataRecord(PhotoDiodeDriver_struct, current_line, 'PHOTOLEDDRIVER', ItemSeparator, ArraySeparator);
+			FoundUserData = 1;
+			continue
+		case {'PHOTODIODERENDERER', 'PHOTODIODERENDERERHEADER', 'PHOTODIODERENDERERTYPES'}
+			PhotoDiodeRenderer_struct = fnParseHeaderTypeDataRecord(PhotoDiodeRenderer_struct, current_line, 'PHOTODIODERENDERER', ItemSeparator, ArraySeparator);
+			FoundUserData = 1;
+			continue
+		case {'RENDERERSTATE', 'RENDERERSTATEHEADER', 'RENDERERSTATETYPES'}
+			RendererState_struct = fnParseHeaderTypeDataRecord(RendererState_struct, current_line, 'RENDERERSTATE', ItemSeparator, ArraySeparator);
+			FoundUserData = 1;
+			continue
 		case {'TRIAL', 'TRIALHEADER', 'TRIALTYPES', '\nTRIAL', '\nTRIALHEADER', '\nTRIALTYPES'}
 			data_struct = fnParseHeaderTypeDataRecord(data_struct, current_line, 'TRIAL', ItemSeparator, ArraySeparator);
 			FoundUserData = 1;
 			continue
+		case {'TRIALTIME', 'TRIALTIMEHEADER', 'TRIALTIMETYPES', '\nTRIALTIME', '\nTRIALTIMEHEADER', '\nTRIALTIMETYPES'}
+			TrialTime_struct = fnParseHeaderTypeDataRecord(TrialTime_struct, current_line, 'TRIALTIME', ItemSeparator, ArraySeparator);
+			FoundUserData = 1;
+			continue			
+			
 		otherwise
 			UpperCaseLogIdx = isstrprop(CurrentToken,'upper');
 			CurrentTokenUpperCaseRatio = mean(UpperCaseLogIdx);
@@ -394,6 +421,9 @@ if ~isempty(fieldnames(Enums_struct))
 	if ~isempty(fieldnames(DigitalOutMessage_struct))
 		DigitalOutMessage_struct = fnAddEnumsToDataStruct(DigitalOutMessage_struct, Enums_struct, {''}, {'s'});
 	end
+	if ~isempty(fieldnames(RendererState_struct))
+		RendererState_struct = fnAddEnumsToDataStruct(RendererState_struct, Enums_struct, {''}, {'s'});
+	end	
 end
 
 
@@ -425,6 +455,11 @@ report_struct.Screen = Screen_struct;
 report_struct.Render = Render_struct;
 report_struct.ParadigmState = ParadigmState_struct;
 report_struct.DigitalOutMessage = DigitalOutMessage_struct;
+report_struct.DigitalOutOctet = DigitalOutOctet_struct;
+report_struct.PhotoDiodeDriver = PhotoDiodeDriver_struct;
+report_struct.PhotoDiodeRenderer = PhotoDiodeRenderer_struct;
+report_struct.RendererState = RendererState_struct;
+report_struct.TrialTime = TrialTime_struct;
 report_struct.Timing = Timing_struct;
 report_struct.Session = Session_struct;
 report_struct.SessionByTrial = SessionByTrial_struct;
@@ -641,9 +676,9 @@ RemoveEmptyHeaderColumns = 1;
 batch_size = 1;
 DoSanitizeNames = 1;
 
-if strcmp(RecordTypeHint, 'TRIAL')
-	tmp = 'Doh...';
-end
+% if strcmp(RecordTypeHint, 'TRIAL')
+% 	tmp = 'Doh...';
+% end
 
 if isempty(ReferenceHeaderAndTypesByRecordType_struct)
 	% only do this once and only if needed
@@ -743,6 +778,13 @@ if (~isfield(local_data_struct, 'header') || isempty(local_data_struct.header)) 
 					error('Found unexpected empty type, please investigate and fix the code...');
 				end
 			case {'String', 'string', 'Int32[]', 'clPoint[]'}
+				% strings need to to be indexed and variable length arrays
+				% should as well
+				if  length(CurrentProtoHeaderColumn) < 4 || ~strcmp(CurrentProtoHeaderColumn(end-3:end), '_idx')
+					CurrentProtoHeaderColumn = [CurrentProtoHeaderColumn, '_idx'];
+				end
+				tmp_header{end+1} = CurrentProtoHeaderColumn;
+			case {'List`1'}
 				% strings need to to be indexed and variable length arrays
 				% should as well
 				if  length(CurrentProtoHeaderColumn) < 4 || ~strcmp(CurrentProtoHeaderColumn(end-3:end), '_idx')
@@ -849,6 +891,13 @@ if strcmp(RecordType, 'data')
 				% strings need to to be indexed and variable length arrays
 				% should as well
 				OutDataCells{end+1} = CurrentData;
+
+			case {'List`1'}
+				% TODO expand lists by the ArraySeparator?
+				% strings need to to be indexed and variable length arrays
+				% should as well
+				OutDataCells{end+1} = CurrentData;
+			
 			case {'clPoint'}
 				%"1182,445 (6.029°, 23.167?°)"
 				tmp_XY_string = strtok(CurrentData, ' ('); % remove the DVA values as these are not reliable anyways
