@@ -63,6 +63,11 @@ for i_session = 1 : length(session_id_list)
 	% if empty ask for file
 	if (~exist('cur_session_id', 'var')) || isempty(cur_session_id)
 		session_dir = uigetdir(fullfile(SCPDirs.SCP_DATA_BaseDir, SCP_DATA_sub_dir), 'Select the session directory.');
+		
+		if (isnumeric(session_dir) && (session_dir == 0))
+			disp(['No sessiondir selected, bailing out.']);
+			return
+		end
 		[~, cur_session_id, session_dir_extension] = fileparts(session_dir);
 		
 		if isempty(regexp(session_dir_extension, session_dir_label))
