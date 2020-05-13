@@ -86,6 +86,13 @@ for i_session = 1 : length(session_id_list)
 			end
 			session_info = fn_parse_session_id(cur_session_id);
 		else
+			% allow .sessiondir extensions...
+			[~, tmp_cur_session_id, session_dir_extension] = fileparts(cur_session_id);
+			if strcmp(session_dir_extension, '.sessiondir')
+				cur_session_id = tmp_cur_session_id;
+				disp(['Sessoon_id ended in .sessiondir, ignorimg that part...']);
+			end
+
 			% try to find/construct the session_dir
 			session_info = fn_parse_session_id(cur_session_id);
 			switch session_info.setup_id_string
@@ -94,6 +101,7 @@ for i_session = 1 : length(session_id_list)
 				case 'SCP_01'
 					SETUP_sub_dir = 'SCP-CTRL-01';
 			end
+						
 			% construct the FQ session directory
 			session_dir = fullfile(SCPDirs.SCP_DATA_BaseDir, SCP_DATA_sub_dir, SETUP_sub_dir, 'SESSIONLOGS', ...
 				session_info.year_string, session_info.YYMMDD_string, [cur_session_id, session_dir_label]);
