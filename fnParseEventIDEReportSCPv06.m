@@ -101,7 +101,7 @@ if strcmp(ReportLog_ext, '.mat')
 	if ~isempty(regexp(ReportLog_name, version_string))
 		disp(['Requested ReportLog is a .mat file of the most recent version, just loading it...']);
 	else
-		display(['WARNING: the requested ReportLog (', ReportLog_name, ') is not of the curreny version, still loading it...']);
+		display(['WARNING: the requested ReportLog (', ReportLog_name, ') is not of the current version, still loading it...']);
 	end
 	return
 end
