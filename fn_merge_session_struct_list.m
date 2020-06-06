@@ -292,12 +292,26 @@ for i_log = 1 : n_log_files
 					if (is_main_data)
 						cur_log.MergeInfo.adjusted_timestamp_col_names{end+1} = cur_header{i_header_col};
 						if ~isempty(cur_log.data)
+							% zero is used as not-applicable marker for some
+							% timestamp fields, so maintain zeros as literal
+							% zeros
+							zero_trialnum_idx = find(cur_log.data(:, i_header_col) == 0);
 							cur_log.data(:, i_header_col) = cur_log.data(:, i_header_col) + timestamp_additive_correction_offset;
+							if ~isempty(zero_trialnum_idx)
+								cur_log.data(zero_trialnum_idx, i_header_col) = 0;
+							end
 						end
 					else
 						cur_record.MergeInfo.adjusted_timestamp_col_names{end+1} = cur_header{i_header_col};
 						if ~isempty(cur_record.data)
+							% zero is used as not-applicable marker for some
+							% timestamp fields, so maintain zeros as literal
+							% zeros
+							zero_trialnum_idx = find(cur_record.data(:, i_header_col) == 0);
 							cur_record.data(:, i_header_col) = cur_record.data(:, i_header_col) + timestamp_additive_correction_offset;
+							if ~isempty(zero_trialnum_idx)
+								cur_record.data(zero_trialnum_idx, i_header_col) = 0;
+							end							
 						end
 					end
 				end
