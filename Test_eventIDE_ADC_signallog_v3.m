@@ -8,6 +8,10 @@ function [ output_args ] = Test_eventIDE_ADC_signallog_v4( input_args )
 % 	[ data_struct ] = fnParseEventIDETrackerLog_v01(TrackerLog_FQN, column_separator, force_number_of_columns, forced_header_string);
 
 % 
+% TODO:
+% get gravity/range readings for all three dimensions and orientations to
+% calculate bias/zero point and scale for each dimension.
+
 
 
 
@@ -19,9 +23,57 @@ function [ output_args ] = Test_eventIDE_ADC_signallog_v4( input_args )
 %	-> photo diode implies 120/60Hz, Oscilloscope measured 60.24Hz
 % -> ??? tight refresh time histograms BUT high latency ~50ms (3-4 frames)
 test_session_id = '20200513T130845.A_AccXYZ.B_TestB.SCP_01.sessiondir';
+% EventIDE touches first after ripple later before, that is hard to
+% interpret and potentially driven by the acceleratio sensor "touching" the
+% sensitive air-space too early/slowly.
+
+
+
+% RP VGA with splitter 1920x1080, 60Hz (Win10 driver interface), 
+%	Nvidia Control panel: eMotionST3: 60.00 Hz; DELL U2412M: 59.95Hz
+%	60Hz EventIDE graphics mode, OLED reports 60.0Hz
+%	-> photo diode implies 120/60Hz, Oscilloscope measured 60.24Hz
+% -> ??? tight refresh time histograms BUT high latency ~50ms (3-4 frames)
+test_session_id = '20200522T130417.A_AccXYZ.B_TestB.SCP_01';
+% slow rotation from sensor PCP(z) aligned to gravity to PCB(x) aligned to
+% gravity
+
+
+% RP VGA with splitter 1920x1080, 60Hz (Win10 driver interface), 
+%	Nvidia Control panel: eMotionST3: 60.00 Hz; DELL U2412M: 59.95Hz
+%	60Hz EventIDE graphics mode, OLED reports 60.0Hz
+%	-> photo diode implies 120/60Hz, Oscilloscope measured 60.24Hz
+% -> ??? tight refresh time histograms BUT high latency ~50ms (3-4 frames)
+% sensor PCB(x) aligned to gravity
+test_session_id = '20200522T143126.A_AccXYZ.B_TestB.SCP_01';
+
+test_session_id = '20200602T095621.A_None.B_Elmo.SCP_01';
+
+
+% None VGA with splitter 1920x1080, 60Hz (Win10 driver interface), 
+%	Nvidia Control panel: eMotionST3: 60.00 Hz; DELL U2412M: 59.95Hz
+%	60Hz EventIDE graphics mode, OLED reports 60.0Hz
+%	-> photo diode implies 60Hz
+% -> ??? tight refresh time histograms BUT high latency ~50ms (3-4 frames)
+% sensor PCB(x) aligned to gravity
+test_session_id = '20200604T164637.A_TestA.B_OLEDVGA60HzLevel.SCP_01';
+
+
+
+
+% None VGA with splitter 1920x1080, 60Hz (Win10 driver interface), 
+%	Nvidia Control panel: eMotionST3: 60.00 Hz; DELL U2412M: 59.95Hz
+%	60Hz EventIDE graphics mode, IIyama reports 60.0Hz
+%	Iiyama HM204DT @ 60HZ, with phtodiode (Monitor Spot Detector, CRT/Pulse output)
+%		in LCD/Level mode each pulse was only ~0.7ms long to short for the 2k sampling rate
+%	-> photo diode implies 60Hz
+% -> OKAY tight refresh time histograms BUT high latency ~50ms (3-4 frames)
+% sensor PCB(x) aligned to gravity
+test_session_id = '20200604T162529.A_TestA.B_CRTVGA60HzPulse.SCP_01';
+
+
 
 session_struct = fnLoadDataBySessionDir(test_session_id);
-
 
 
 chan_names = {'EventIDE_TimeStamp', 'MotitorSpotDetector_LCD_level', 'RenderTriggerDO', 'AccelerationSensor_X', 'AccelerationSensor_Y', 'AccelerationSensor_Z'};
@@ -34,7 +86,7 @@ uncorr_time_list = ADC_data.data(:, ADC_data.cn.UncorrectedEventIDE_TimeStamp);
 % tmp = [diff(corr_time_list), diff(uncorr_time_list)];
 % plot([diff(corr_time_list), diff(uncorr_time_list)]);
 time_vec = uncorr_time_list;
-time_vec = corr_time_list;
+%time_vec = corr_time_list;
 
 
 
@@ -217,8 +269,12 @@ disp(['Actual screen refreshes at ~' num2str(0.5 * avg_screen_framerate), ' Hz, 
 % assume that at 2KHz sampling and 60Hz screen refresh and break is at
 % least one frame
 sampling_rate_hz = 2000;
-frame_rate_hz = 58.9;
-frame_rate_hz = (0.5 * avg_screen_framerate); % take the empirically measured frame rate instead?
+if isnan(avg_screen_framerate)
+	frame_rate_hz = 60.0;
+else
+	frame_rate_hz = (0.5 * avg_screen_framerate); % take the empirically measured frame rate instead?
+end
+
 samples_per_frame = sampling_rate_hz / frame_rate_hz;
 min_frames_per_gap = 1.5;
 
@@ -392,25 +448,418 @@ for i_pd_block_offset_timestamp = 1 : length(pd_block_offset_timestamp_list)
 	plot([pd_block_offset_timestamp_list(i_pd_block_offset_timestamp), pd_block_offset_timestamp_list(i_pd_block_offset_timestamp)], y_lim, 'Color', [0 0 0]);
 end
 
+
+
 % the accelerometer traces
-figure('Name', 'ADC Test Chunk size');
+figure('Name', 'ADC Acceleration data 333 mV/g, midpoint 166.5 mV');
 %subplot(3, 1, 1)
 title(chan_names{2});
 my_sample_subset = (1:1:6000);
 my_sample_subset = sample_subset;
+
+last_touch_release_time = IF_touch_offset_list(end-1);
+acc_delay_ms = 200;
+proto_last_sample = find(time_vec >= (last_touch_release_time + acc_delay_ms));
+last_sample = proto_last_sample(1);
+
+
+first_touch_acq_time = IF_touch_onset_list(1);
+acc_pre_delay_ms = 200;
+proto_first_sample = find(time_vec >= (first_touch_acq_time - acc_delay_ms));
+first_sample = proto_first_sample(1);
+
+start_idx = 1;
+start_idx = first_sample; % (larger than the chunk size of 5000)
+end_idx = length(sample_subset);
+end_idx = last_sample;
+
+start_idx = 1;
+end_idx = length(sample_subset);
+
+my_sample_subset = (start_idx:1:end_idx); % avoid the initial junk 
+cur_xvec = time_vec(my_sample_subset);
+
 %plot(time_vec(my_sample_subset), ADC_data.data(my_sample_subset, ADC_data.cn.Dev1_ai2));
-%plot(my_sample_subset, ADC_data.data(my_sample_subset, ADC_data.cn.Dev1_ai0));
+%plot(cur_xvec, ADC_data.data(my_sample_subset, ADC_data.cn.Dev1_ai0));
 hold on
-%plot(my_sample_subset, ADC_data.data(my_sample_subset, ADC_data.cn.Dev1_ai1));
-plot(my_sample_subset, ADC_data.data(my_sample_subset, ADC_data.cn.Dev1_ai2));
-plot(my_sample_subset, ADC_data.data(my_sample_subset, ADC_data.cn.Dev1_ai3));
-plot(my_sample_subset, ADC_data.data(my_sample_subset, ADC_data.cn.Dev1_ai4));
-legend(chan_names(4:end), 'Interpreter', 'none');
+%plot(cur_xvec, ADC_data.data(my_sample_subset, ADC_data.cn.Dev1_ai1));
+plot(cur_xvec, ADC_data.data(my_sample_subset, ADC_data.cn.Dev1_ai2));	% X
+plot(cur_xvec, ADC_data.data(my_sample_subset, ADC_data.cn.Dev1_ai3));	% Y
+plot(cur_xvec, ADC_data.data(my_sample_subset, ADC_data.cn.Dev1_ai4));	% Z
+
+legend_list = chan_names(4:end);
+
+y_lim = get(gca(), 'YLim');
+
+for i_IFtouch_onset = 1 : length(IF_touch_onset_list)
+	plot([IF_touch_onset_list(i_IFtouch_onset), IF_touch_onset_list(i_IFtouch_onset)], y_lim, 'Color', [0 1 0]);
+end
+legend_list{end+1} = 'IFT_touch_onset';
+for i_IFtouch_offset = 1 : length(IF_touch_offset_list)
+	plot([IF_touch_offset_list(i_IFtouch_offset), IF_touch_offset_list(i_IFtouch_offset)], y_lim, 'Color', [1 0 1]);	
+end
+legend_list{end+1} = 'IFT_touch_offset';
+
+legend(legend_list, 'Interpreter', 'none');
 
 hold off
 xlabel('Samples');
 y_lim = get(gca(), 'YLim');
 
+
+% get velocity?
+acc_x = ADC_data.data(:, ADC_data.cn.Dev1_ai2);
+acc_y = ADC_data.data(:, ADC_data.cn.Dev1_ai3);
+acc_z = ADC_data.data(:, ADC_data.cn.Dev1_ai4);
+
+
+
+
+% these need to be filtered
+% low pass based on sampling frequency (2kHz) and impulse response function
+% of the DE-ACCM3D (~500 Hz)
+% high pass to reduce slow transients, below 0.5 Hz?
+
+% bpFilt = designfilt('bandpassfir','FilterOrder',300, ...
+%          'CutoffFrequency1',10,'CutoffFrequency2',500, ...
+%          'SampleRate',2000);
+% fvtool(bpFilt)
+
+% bpFilt = designfilt('lowpassiir','FilterOrder',20, ...
+%          'HalfPowerFrequency1',0.0001,'HalfPowerFrequency2',250, ...
+%          'SampleRate',2000);
+	 
+lpFilt = designfilt('lowpassiir', ...        % Response type
+       'PassbandFrequency',250, ...     % Frequency constraints
+       'StopbandFrequency',300, ...
+       'PassbandRipple',1, ...          % Magnitude constraints
+       'StopbandAttenuation',55, ...
+       'DesignMethod','ellip', ...      % Design method
+       'MatchExactly','passband', ...   % Design method options
+       'SampleRate',2000);               % Sample rate
+%fvtool(lpFilt)	 
+	 
+
+hpFilt = designfilt('highpassiir','FilterOrder',20, ...
+         'PassbandFrequency', 1,'PassbandRipple',0.2, ...
+         'SampleRate',2000);
+%fvtool(hpFilt)
+%fvtool(lpFilt)	 
+
+
+% acc.x = acc_x;
+% acc.y = acc_y;
+% acc.z = acc_z;
+
+orig_acc_xyz = [acc_x, acc_y, acc_z];
+% get the length of the euclidian acceleration vector
+orig_acc_3d = sqrt(orig_acc_xyz(:,1).^2 + orig_acc_xyz(:,2).^2 + orig_acc_xyz(:,3).^2);
+
+% TODO properly scale & debias each channel
+x_max = 1.97;
+x_min = 1.3;
+y_max = 1.97;
+y_min = 1.3;
+z_max = 2.07;
+z_min = 1.42;
+
+x_zero = x_min + ((x_max-x_min) * 0.5);
+y_zero = y_min + ((y_max-y_min) * 0.5);
+z_zero = z_min + ((z_max-z_min) * 0.5);
+
+x_scale = (x_max-x_min) * 0.5;
+y_scale = (y_max-y_min) * 0.5;
+z_scale = (z_max-z_min) * 0.5;
+
+
+
+% debias the acceleration signals
+%acc_xyz = [(acc_x - (x_max-x_min)*0.5), (acc_y - (y_max-y_min)*0.5), (acc_z - (z_max-z_min)*0.5)];
+acc_xyz = [(acc_x - x_zero)/x_scale, (acc_y - y_zero)/y_scale, (acc_z - z_zero)/z_scale];
+
+
+orig_acc_3d = sqrt(acc_xyz(:,1).^2 + acc_xyz(:,2).^2 + acc_xyz(:,3).^2);
+
+
+% remove gravity's acceleration
+
+%pre_test_gravity = mean(acc_3d(6000:6000+(2000*120)));
+%post_test_gravity = mean(acc_3d(end-(2000*60):end-20000));
+
+around_test_gravity = mean([orig_acc_3d(6000:6000+(2000*120)); orig_acc_3d(end-(2000*60):end-20000)]);
+acc_3d = orig_acc_3d - around_test_gravity;
+
+
+figure('Name', '3d acceleration magnitude data');
+hold on
+plot(cur_xvec, acc_3d(my_sample_subset));
+fn_plot_eventIDE_touch_acq_rel_times(IF_touch_onset_list, IF_touch_offset_list, []);
+xlabel('Samples time');
+y_lim = get(gca(), 'YLim');
+hold off
+
+% try to get rid of "HF" noise
+filt_acc_xyz = [filtfilt(lpFilt, acc_xyz(:,1)), filtfilt(lpFilt, acc_xyz(:,2)), filtfilt(lpFilt, acc_xyz(:,3))];
+% get the length of the euclidian acceleration vector
+orig_filt_acc_3d = sqrt(filt_acc_xyz(:,1).^2 + filt_acc_xyz(:,2).^2 + filt_acc_xyz(:,3).^2);
+
+around_test_gravity = mean([orig_filt_acc_3d(6000:6000+(2000*120)); orig_filt_acc_3d(end-(2000*60):end-20000)]);
+filt_acc_3d = orig_filt_acc_3d - around_test_gravity;
+
+figure('Name', 'filtered 3d acceleration magnitude data');
+hold on
+plot(cur_xvec, filt_acc_3d(my_sample_subset));
+fn_plot_eventIDE_touch_acq_rel_times(IF_touch_onset_list, IF_touch_offset_list, []);
+xlabel('Samples time');
+y_lim = get(gca(), 'YLim');
+hold off
+
+
+% integrate acceleration to velocity
+% coarsely debias
+tmp_acc = filtfilt(hpFilt, filt_acc_3d);
+% 
+tmp_acc_mag = abs(tmp_acc);
+
+figure('Name', 'halfway rectified 3d acceleration magnitude data');
+hold on
+plot(cur_xvec, tmp_acc_mag(my_sample_subset));
+fn_plot_eventIDE_touch_acq_rel_times(IF_touch_onset_list, IF_touch_offset_list, []);
+xlabel('Samples time');
+set(gca(), 'YLim', [0, 1]);
+y_lim = get(gca(), 'YLim');
+hold off
+
+
+% try thresholding this?
+
+
+
+
+
+vel_3d = cumsum(filtfilt(hpFilt, tmp_acc));
+
+vel_3d = cumsum(filt_acc_3d);
+%vel_3d = cumsum(filtfilt(hpFilt, vel_3d));
+
+
+
+figure('Name', 'filtered 3d velocity magnitude data');
+hold on
+plot(cur_xvec, vel_3d(my_sample_subset));
+y_lim = get(gca(), 'YLim');
+fn_plot_eventIDE_touch_acq_rel_times(IF_touch_onset_list, IF_touch_offset_list, y_lim);
+xlabel('Samples time');
+%set(gca(), 'YLim', []);
+y_lim = get(gca(), 'YLim');
+hold off
+
+
+
+
+
+% figure('Name', '3d acceleration magnitude data');
+% hold on
+% plot(cur_xvec, acc_3d(my_sample_subset));
+% fn_plot_eventIDE_touch_acq_rel_times(IF_touch_onset_list, IF_touch_offset_list, []);
+% xlabel('Samples time');
+% y_lim = get(gca(), 'YLim');
+% hold off
+
+% now we need to get rid of 
+filt_acc_3d = filtfilt(bpFilt, acc_3d);
+figure('Name', 'filtered 3d acceleration magnitude data');
+hold on
+plot(cur_xvec, filt_acc_3d(my_sample_subset));
+fn_plot_eventIDE_touch_acq_rel_times(IF_touch_onset_list, IF_touch_offset_list, []);
+xlabel('Samples time');
+y_lim = get(gca(), 'YLim');
+hold off
+
+figure('Name', 'filtered acceleration data');
+hold on
+fil_acc_xyz = zeros(size(acc_xyz));
+for i_dim = 1 : size(acc_xyz, 2)
+	fil_acc_xyz(:, i_dim) = filtfilt(bpFilt, acc_xyz(:, i_dim));
+	plot(cur_xvec, fil_acc_xyz(my_sample_subset, i_dim));
+end
+fn_plot_eventIDE_touch_acq_rel_times(IF_touch_onset_list, IF_touch_offset_list, []);
+xlabel('Samples time');
+y_lim = get(gca(), 'YLim');
+hold off
+
+figure('Name', 'filtered velocity: integrated filtered acceleration data');
+hold on
+filt_int_fil_vel_xyz = zeros(size(acc_xyz));
+for i_dim = 1 : size(acc_xyz, 2)
+	filt_int_fil_vel_xyz(:, i_dim) = cumsum(fil_acc_xyz(:, i_dim));
+	%filt_int_fil_vel_xyz(:, i_dim) = filtfilt(bpFilt, cumsum(fil_acc_xyz(:, i_dim)));
+	plot(cur_xvec, filt_int_fil_vel_xyz(my_sample_subset, i_dim));
+end
+fn_plot_eventIDE_touch_acq_rel_times(IF_touch_onset_list, IF_touch_offset_list, []);
+xlabel('Samples time');
+y_lim = get(gca(), 'YLim');
+hold off
+
+figure('Name', 'filtered positiom: integrated filtered velocity data');
+hold on
+filt_int_fil_pos_xyz = zeros(size(acc_xyz));
+for i_dim = 1 : size(acc_xyz, 2)
+	filt_int_fil_pos_xyz(:, i_dim) = cumsum(detrend(filt_int_fil_vel_xyz(:, i_dim)));
+	%filt_int_fil_pos_xyz(:, i_dim) = filtfilt(bpFilt, cumsum(filt_int_fil_vel_xyz(:, i_dim)));
+	plot(cur_xvec, filt_int_fil_pos_xyz(my_sample_subset, i_dim));
+end
+fn_plot_eventIDE_touch_acq_rel_times(IF_touch_onset_list, IF_touch_offset_list, []);
+xlabel('Samples time');
+y_lim = get(gca(), 'YLim');
+hold off
+
+
+%clean up acceleration:
+detrend_xvec= cur_xvec(120000:end-120000);
+[p, S, mu] = polyfit(acc_x(120000:end-120000), detrend_xvec, 0);
+cur_trend = polyval(p, cur_xvec,[], mu);
+detrended_acc_x = acc_x - cur_trend;
+
+[p, S, mu] = polyfit(acc_y(120000:end-120000), detrend_xvec, 0);
+cur_trend = polyval(p, cur_xvec,[], mu);
+detrended_acc_y = acc_y - cur_trend;
+
+[p, S, mu] = polyfit(acc_z(120000:end-120000), detrend_xvec, 0);
+cur_trend = polyval(p, cur_xvec,[], mu);
+detrended_acc_z = acc_z - cur_trend;
+
+figure; 
+%plot(cur_xvec, cur_trend);
+hold on
+plot(cur_xvec, acc_y);
+plot(cur_xvec, detrended_acc_y);
+
+
+
+% the accelerometer traces
+figure('Name', 'ADC Acceleration data 333 mV/g, midpoint 166.5 mV');
+%subplot(3, 1, 1)
+title(chan_names{2});
+my_sample_subset = (1:1:6000);
+my_sample_subset = sample_subset;
+
+my_sample_subset = sample_subset;
+cur_xvec = time_vec(my_sample_subset);
+
+%plot(time_vec(my_sample_subset), ADC_data.data(my_sample_subset, ADC_data.cn.Dev1_ai2));
+%plot(cur_xvec, ADC_data.data(my_sample_subset, ADC_data.cn.Dev1_ai0));
+hold on
+%plot(cur_xvec, ADC_data.data(my_sample_subset, ADC_data.cn.Dev1_ai1));
+plot(cur_xvec, detrended_acc_x);	% X
+plot(cur_xvec, detrended_acc_y);	% Y
+plot(cur_xvec, detrended_acc_z);	% Z
+
+legend_list = chan_names(4:end);
+
+y_lim = get(gca(), 'YLim');
+
+for i_IFtouch_onset = 1 : length(IF_touch_onset_list)
+	plot([IF_touch_onset_list(i_IFtouch_onset), IF_touch_onset_list(i_IFtouch_onset)], y_lim, 'Color', [0 1 0]);
+end
+% legend_list{end+1} = 'IFT_touch_onset';
+for i_IFtouch_offset = 1 : length(IF_touch_offset_list)
+	plot([IF_touch_offset_list(i_IFtouch_offset), IF_touch_offset_list(i_IFtouch_offset)], y_lim, 'Color', [1 0 1]);	
+end
+% legend_list{end+1} = 'IFT_touch_offset';
+
+legend(legend_list, 'Interpreter', 'none');
+
+hold off
+xlabel('Samples');
+y_lim = get(gca(), 'YLim');
+
+
+
+
+% get velocity?
+int_acc_x = cumsum(ADC_data.data(:, ADC_data.cn.Dev1_ai2) - 3.33*0.5);
+int_acc_y = cumsum(ADC_data.data(:, ADC_data.cn.Dev1_ai3) - 3.33*0.5);
+int_acc_z = cumsum(ADC_data.data(:, ADC_data.cn.Dev1_ai4) - 3.33*0.5);
+
+
+figure('Name', 'ADC Velocity by axis data 333 mV/g, midpoint 166.5 mV');
+
+%plot(time_vec(my_sample_subset), ADC_data.data(my_sample_subset, ADC_data.cn.Dev1_ai2));
+%plot(cur_xvec, ADC_data.data(my_sample_subset, ADC_data.cn.Dev1_ai0));
+hold on
+%plot(cur_xvec, ADC_data.data(my_sample_subset, ADC_data.cn.Dev1_ai1));
+plot(cur_xvec, int_acc_x(my_sample_subset));	% X
+plot(cur_xvec, int_acc_y(my_sample_subset));	% Y
+plot(cur_xvec, int_acc_z(my_sample_subset));	% Z
+
+y_lim = get(gca(), 'YLim');
+
+for i_IFtouch_onset = 1 : length(IF_touch_onset_list)
+	plot([IF_touch_onset_list(i_IFtouch_onset), IF_touch_onset_list(i_IFtouch_onset)], y_lim, 'Color', [0 1 0]);
+end
+%legend_list{end+1} = 'IFT_touch_onset';
+for i_IFtouch_offset = 1 : length(IF_touch_offset_list)
+	plot([IF_touch_offset_list(i_IFtouch_offset), IF_touch_offset_list(i_IFtouch_offset)], y_lim, 'Color', [1 0 1]);	
+end
+%legend_list{end+1} = 'IFT_touch_offset';
+
+legend(legend_list, 'Interpreter', 'none');
+
+hold off
+xlabel('Samples');
+y_lim = get(gca(), 'YLim');
+
+
+
+% these need to be filtered
+% low pass based on sampling frequency (2kHz) and impulse response function
+% of the DE-ACCM3D (~500 Hz)
+% high pass to reduce slow transients, below 0.5 Hz?
+
+bpFilt = designfilt('bandpassfir','FilterOrder',300, ...
+         'CutoffFrequency1',1,'CutoffFrequency2',500, ...
+         'SampleRate',2000);
+fvtool(bpFilt)
+
+bpFilt = designfilt('bandpassiir','FilterOrder',200, ...
+         'HalfPowerFrequency1',1,'HalfPowerFrequency2',500, ...
+         'SampleRate',2000);
+fvtool(bpFilt)
+
+
+filt_int_acc_x = filtfilt(bpFilt, int_acc_x);
+filt_int_acc_y = filtfilt(bpFilt, int_acc_y);
+filt_int_acc_z = filtfilt(bpFilt, int_acc_z);
+
+
+
+figure('Name', 'ADC bandfiltered Velocity by axis data 333 mV/g, midpoint 166.5 mV');
+
+%plot(time_vec(my_sample_subset), ADC_data.data(my_sample_subset, ADC_data.cn.Dev1_ai2));
+%plot(cur_xvec, ADC_data.data(my_sample_subset, ADC_data.cn.Dev1_ai0));
+hold on
+%plot(cur_xvec, ADC_data.data(my_sample_subset, ADC_data.cn.Dev1_ai1));
+plot(cur_xvec, filt_int_acc_x(my_sample_subset));	% X
+plot(cur_xvec, filt_int_acc_y(my_sample_subset));	% Y
+%plot(cur_xvec, filt_int_acc_z(my_sample_subset));	% Z
+
+y_lim = get(gca(), 'YLim');
+
+for i_IFtouch_onset = 1 : length(IF_touch_onset_list)
+	plot([IF_touch_onset_list(i_IFtouch_onset), IF_touch_onset_list(i_IFtouch_onset)], y_lim, 'Color', [0 1 0]);
+end
+%legend_list{end+1} = 'IFT_touch_onset';
+for i_IFtouch_offset = 1 : length(IF_touch_offset_list)
+	plot([IF_touch_offset_list(i_IFtouch_offset), IF_touch_offset_list(i_IFtouch_offset)], y_lim, 'Color', [1 0 1]);	
+end
+%legend_list{end+1} = 'IFT_touch_offset';
+
+legend(legend_list, 'Interpreter', 'none');
+
+hold off
+xlabel('Samples');
+y_lim = get(gca(), 'YLim');
 
 end
 
@@ -420,3 +869,20 @@ end
 % 
 % 
 % end
+
+function [] = fn_plot_eventIDE_touch_acq_rel_times( IF_touch_onset_list, IF_touch_offset_list, y_lim )
+
+
+if isempty(y_lim)
+	y_lim = get(gca(), 'YLim');
+end
+
+for i_IFtouch_onset = 1 : length(IF_touch_onset_list)
+	plot([IF_touch_onset_list(i_IFtouch_onset), IF_touch_onset_list(i_IFtouch_onset)], y_lim, 'Color', [0 1 0]);
+end
+% legend_list{end+1} = 'IFT_touch_onset';
+for i_IFtouch_offset = 1 : length(IF_touch_offset_list)
+	plot([IF_touch_offset_list(i_IFtouch_offset), IF_touch_offset_list(i_IFtouch_offset)], y_lim, 'Color', [1 0 1]);	
+end
+% legend_list{end+1} = 'IFT_touch_offset';
+end
