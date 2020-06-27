@@ -6,8 +6,7 @@ function [ out_struct, session_id, session_id_list, session_struct_list ] = fnLo
 %TODO:
 %	add automatic evaluation of calibration sessions to gaze data? (maybe add to fnParseEventIDETrackerLog_v01 instead)
 %	with a merged_session_id flag given, merge the data of those sessions
-%	merge_command: if 'remerge' redo the session merging, otherwise just
-%	load the existing merged session
+%	Also add *.digitalinchangelog.txt files to the parsed and merged data
 %
 %	SESSION MERGING:
 %	expect a session, with a session_merge_list (list of sessionIDs, or full paths, one per row)
@@ -127,6 +126,14 @@ for i_session = 1 : length(session_id_list)
 		disp(['Current session_id starts with #, so ignore it: ', cur_session_id]);
 		continue
 	end
+	
+	% allow for the merged session identifier to exist in the session list
+ 	if (strcmp(cur_session_id, session_id) && strcmp(merge_command, 'merge'))
+		disp(['Found meta merge session in session_id_list, so commenting and skipping: ', cur_session_id]);
+		session_id_list{i_session} = ['#', session_id_list{i_session};];
+		continue
+	end
+
 	
 	
 	% if empty ask for file
