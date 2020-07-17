@@ -113,12 +113,12 @@ ReportLog_size_bytes  = tmp_dir_ReportLog_FQN.bytes;
 OverrideItemSeparator = 0;
 if (~exist('ItemSeparator', 'var'))
 	ItemSeparator = ';';
-	OverrideItemSeparator = 1;
+	OverrideItemSeparator = 0;
 end
 OverrideArraySeparator = 0;
 if (~exist('ArraySeparator', 'var'))
 	ArraySeparator = '|';
-	OverrideArraySeparator = 1;
+	OverrideArraySeparator = 0;
 end
 
 
@@ -162,6 +162,7 @@ CurrentEnumFullyParsed = 0;
 FoundUserData = 0;
 Stimulus_struct = struct();
 Video_struct = struct();
+ErrorReport_struct = struct();
 
 %loop over all lines in the ReportLog
 while (~feof(ReportLog_fd))
@@ -302,6 +303,10 @@ while (~feof(ReportLog_fd))
 			RendererState_struct = fnParseHeaderTypeDataRecord(RendererState_struct, current_line, 'RENDERERSTATE', ItemSeparator, ArraySeparator);
 			FoundUserData = 1;
 			continue
+		case {'ERRORREPORT', 'ERRORREPORTHEADER', 'ERRORREPORTTYPES'}
+			ErrorReport_struct = fnParseHeaderTypeDataRecord(ErrorReport_struct, current_line, 'ERRORREPORT', ItemSeparator, ArraySeparator);
+			FoundUserData = 1;
+			continue	
 		case {'TRIAL', 'TRIALHEADER', 'TRIALTYPES', '\nTRIAL', '\nTRIALHEADER', '\nTRIALTYPES'}
 			data_struct = fnParseHeaderTypeDataRecord(data_struct, current_line, 'TRIAL', ItemSeparator, ArraySeparator);
 			FoundUserData = 1;
@@ -375,16 +380,19 @@ if ~isempty(data_struct.data) && (size(data_struct.data, 1) ~= data_struct.data(
 end
 
 % add the sessionID (create from time and setupID
-TmpDateVector = IDinfo_struct.DateVector;
-SessionDataTimeValue = TmpDateVector(6)*10 + TmpDateVector(5) * 100 + TmpDateVector(4) * 10000 + ...
-	TmpDateVector(3) * 1000000 + TmpDateVector(2) * 100000000 + TmpDateVector(1) * 10000000000;
-SessionSetUpIdCode =  str2double(IDinfo_struct.Computer(end-1:end)); % better use a hash of the computer name?
-% create a numeric ID for the different set-ups
-SessionIdValue = SessionDataTimeValue * 100 + SessionSetUpIdCode;   % this will break around the year 9007...
-%num2str(SessionIdValue)
-NewDataColumn = ones([size(data_struct.data, 1), 1]) * SessionIdValue;
-data_struct = fn_handle_data_struct('add_columns', data_struct, NewDataColumn, {'SessionID'});
-
+if isfield(IDinfo_struct, 'DateVector')
+	TmpDateVector = IDinfo_struct.DateVector;
+	SessionDataTimeValue = TmpDateVector(6)*10 + TmpDateVector(5) * 100 + TmpDateVector(4) * 10000 + ...
+		TmpDateVector(3) * 1000000 + TmpDateVector(2) * 100000000 + TmpDateVector(1) * 10000000000;
+	SessionSetUpIdCode =  str2double(IDinfo_struct.Computer(end-1:end)); % better use a hash of the computer name?
+	% create a numeric ID for the different set-ups
+	SessionIdValue = SessionDataTimeValue * 100 + SessionSetUpIdCode;   % this will break around the year 9007...
+	%num2str(SessionIdValue)
+	NewDataColumn = ones([size(data_struct.data, 1), 1]) * SessionIdValue;
+	data_struct = fn_handle_data_struct('add_columns', data_struct, NewDataColumn, {'SessionID'});
+else
+	disp('IDinfo_struct is missing a DateVector; skipping but things might break...');
+end
 
 % also add reward information to the trial table
 % for this we nned to parse the Reward_struct and create columns to add to
@@ -423,6 +431,9 @@ if ~isempty(fieldnames(Enums_struct))
 	end
 	if ~isempty(fieldnames(RendererState_struct))
 		RendererState_struct = fnAddEnumsToDataStruct(RendererState_struct, Enums_struct, {''}, {'s'});
+	end	
+	if ~isempty(fieldnames(ErrorReport_struct))
+		ErrorReport_struct = fnAddEnumsToDataStruct(ErrorReport_struct, Enums_struct, {''}, {'s'});
 	end	
 end
 
@@ -470,6 +481,7 @@ report_struct.Reward = Reward_struct;
 report_struct.Totals = Totals_struct;
 report_struct.Stimuli = Stimulus_struct;
 report_struct.Video = Video_struct;
+report_struct.ErrorReport = ErrorReport_struct;
 
 % add the additional information structure
 report_struct.info = info;
