@@ -1101,19 +1101,47 @@ switch tracker_type
 		reliable_min = min(sample_interval_list(floor(n_samples*0.33):end));
 		reliable_mean = mean(sample_interval_list(floor(n_samples*0.33):end)); 
 		
+		correct_for_chunkSize = 0;
+		chunk_error_type = '';
 		pre_rate_to_main_rate_factor = 1.2;
 		% this is just a bad heuristic to catch too high/low initial sampling
 		if (first_sample_interval < reliable_mean) && (pre_rate_to_main_rate_factor * first_sample_interval < reliable_mean)
-			corrected_EventIDE_TimeStamp_list = ones(size(corrected_EventIDE_TimeStamp_list)) * -1000;
+			correct_for_chunkSize = 1;
+			chunk_error_type = 'too_low';
+		end
+		
+		pre_rate_to_main_rate_factor_high = 0.99;
+		% this is just a bad heuristic to catch too high/low initial sampling
+		if (first_sample_interval > reliable_mean) && (pre_rate_to_main_rate_factor_high * first_sample_interval > reliable_mean)
+			correct_for_chunkSize = 1;
+			chunk_error_type = 'too_high';
+		end
+			
+		if (correct_for_chunkSize)
+		corrected_EventIDE_TimeStamp_list = ones(size(corrected_EventIDE_TimeStamp_list)) * -1000;
 			i_bad_interval_sample = 0;
 			% find the initial stretch of too low values
-			for i_bad_interval_sample = 1 : n_samples
-				if (pre_rate_to_main_rate_factor * sample_interval_list(i_bad_interval_sample) < reliable_mean)
-				else
-					% break so i_sample contains the last offending
-					% interval idx
-					break
-				end
+			% maybe better search for the first stretch of X samples that
+			% are closer to the reliable_mean than to the first_sample_interval
+			switch chunk_error_type
+				case 'too_low'
+					for i_bad_interval_sample = 1 : n_samples
+						if (pre_rate_to_main_rate_factor * sample_interval_list(i_bad_interval_sample) < reliable_mean)
+						else
+							% break so i_sample contains the last offending
+							% interval idx
+							break
+						end
+					end
+				case 'too_high'
+					for i_bad_interval_sample = 1 : n_samples
+						if (pre_rate_to_main_rate_factor_high * sample_interval_list(i_bad_interval_sample) > reliable_mean)
+						else
+							% break so i_sample contains the last offending
+							% interval idx
+							break
+						end
+					end
 			end
 			
 			rate_change_idx = i_bad_interval_sample;
@@ -1126,12 +1154,7 @@ switch tracker_type
 			mean_post_switch_interval = mean(sample_interval_list(rate_change_idx+1 : end));
 			corrected_EventIDE_TimeStamp_list(rate_change_idx+1 : end) = ((0:1:(n_timestamps - rate_change_idx-1))' * mean_post_switch_interval) + rate_change_ts;	
 		end
-				
-		% this is just a bad heuristic to catch too high/low initial sampling
-		if (first_sample_interval > reliable_mean) && (2 * first_sample_interval > reliable_mean)
-			error('Not implemented yet');
-		end
-		
+						
 	otherwise
 		error(['Encountered unhandled tracker type: ', tracker_name, ' please handle gracefully']);
 end

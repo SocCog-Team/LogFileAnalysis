@@ -58,7 +58,7 @@ if ~exist('merge_command', 'var') || isempty(merge_command)
 	merge_command = '';
 else
 	if ~(ismember(merge_command, {'merge', 'MERGE'}))
-		error(['unhabdled merge_command (', merge_command, ') encountered, bailing out.']);
+		error(['unhandled merge_command (', merge_command, ') encountered, bailing out.']);
 	end
 end
 
@@ -303,8 +303,17 @@ else
 	end
 	
 	% construct the FQ session directory
-	session_dir = fullfile(SCPDirs.SCP_DATA_BaseDir, SCP_DATA_sub_dir, SETUP_sub_dir, 'SESSIONLOGS', ...
-		session_info.year_string, session_info.YYMMDD_string, [cur_session_id, session_dir_label]);
+	
+	[tmp_path, tmp_name, tmp_ext] = fileparts(SCPDirs.SCP_DATA_BaseDir);
+	if strcmp(tmp_name, SCP_DATA_sub_dir)
+		% new style where the data directoty last level is SCP_DATA
+		session_dir = fullfile(SCPDirs.SCP_DATA_BaseDir, SETUP_sub_dir, 'SESSIONLOGS', ...
+			session_info.year_string, session_info.YYMMDD_string, [cur_session_id, session_dir_label]);
+		
+	else
+		session_dir = fullfile(SCPDirs.SCP_DATA_BaseDir, SCP_DATA_sub_dir, SETUP_sub_dir, 'SESSIONLOGS', ...
+			session_info.year_string, session_info.YYMMDD_string, [cur_session_id, session_dir_label]);
+	end
 end
 return
 end

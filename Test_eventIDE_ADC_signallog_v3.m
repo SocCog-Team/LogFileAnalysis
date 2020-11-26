@@ -72,6 +72,43 @@ test_session_id = '20200604T164637.A_TestA.B_OLEDVGA60HzLevel.SCP_01';
 test_session_id = '20200604T162529.A_TestA.B_CRTVGA60HzPulse.SCP_01';
 
 
+% None VGA with splitter 1920x1080, 60Hz (Win10 driver interface), 
+%	Nvidia Control panel: eMotionST3: 60.00 Hz; DELL U2412M: 59.95Hz
+%	60Hz EventIDE graphics mode, IIyama reports 60.0Hz
+%	Eyevis OLED @ 60Hz LCD/Level
+%	-> photo diode implies 60Hz
+% -> OKAY tight refresh time histograms BUT high latency ~50ms (3-4 frames)
+% sensor PCB(x) aligned to gravity
+test_session_id = '20200604T162529.A_TestA.B_CRTVGA60HzPulse.SCP_01';
+
+%test_session_id = '20200716T123615.A_TestA.B_None.SCP_01';
+
+
+% None VGA with splitter 1920x1080, 60Hz (Win10 driver interface), 
+%	Nvidia Control panel: eMotionST3: 60.00 Hz; DELL U2412M: 59.95Hz
+%	60Hz EventIDE graphics mode, IIyama reports 60.0Hz
+%	Iiyama HM204DT @ 60HZ, with phtodiode (Monitor Spot Detector, CRT/Pulse output)
+%	-> photo diode implies 60Hz
+% -> OKAY tight refresh time histograms BUT high latency ~50ms (3-4 frames)
+% sensor PCB(x) aligned to gravity
+test_session_id = '20200717T120139.A_TestA.B_CRT60HzVGA.SCP_01';
+
+
+test_session_id = '20200722T145419.A_SM.B_Elmo.SCP_01';
+
+
+% Elmo VGA with splitter 1920x1080, 60Hz (Win10 driver interface), 
+%	Nvidia Control panel: eMotionST3: 60.00 Hz; DELL U2412M: 59.95Hz
+%	60Hz EventIDE graphics mode, IIyama reports 60.0Hz
+%	Eyevis OLED @ 60Hz LCD/Level
+%	-> photo diode implies 60Hz
+% -> OKAY tight refresh time histograms BUT high latency ~50ms (3-4 frames)
+% sensor PCB(x) aligned to gravity
+test_session_id = '20201014T163327.A_Elmo.B_SM.SCP_01';
+
+
+
+
 
 session_struct = fnLoadDataBySessionDir(test_session_id);
 
@@ -117,12 +154,17 @@ sample_subset = (1:1:length(time_vec));
 
 % touches as registered by eventide
 trial_log = session_struct.triallog;
-IF_touch_onset_list = trial_log.data(:, trial_log.cn.A_InitialFixationTouchTime_ms) ;
-IF_touch_offset_list = trial_log.data(:, trial_log.cn.A_InitialFixationAdjReleaseTime_ms);
 
-IF_touch_onset_list(IF_touch_onset_list == 0) = [];
-IF_touch_offset_list(IF_touch_offset_list == 0) = [];
-
+if (isfield(trial_log, 'cn') && isfield(trial_log.cn, 'A_InitialFixationTouchTime_ms'))
+	IF_touch_onset_list = trial_log.data(:, trial_log.cn.A_InitialFixationTouchTime_ms) ;
+	IF_touch_offset_list = trial_log.data(:, trial_log.cn.A_InitialFixationAdjReleaseTime_ms);
+	
+	IF_touch_onset_list(IF_touch_onset_list == 0) = [];
+	IF_touch_offset_list(IF_touch_offset_list == 0) = [];
+else
+	IF_touch_onset_list = [];
+	IF_touch_offset_list = [];
+end
 
 IF_touch_onset_list = IF_touch_onset_list - time_offset;
 IF_touch_offset_list = IF_touch_offset_list - time_offset;
@@ -132,8 +174,10 @@ IF_touch_offset_list = IF_touch_offset_list - time_offset;
 %touch_dur = IF_touch_offset_list - IF_touch_onset_list;
 
 % render events
-render_timestamps = trial_log.Render.data(:, trial_log.Render.cn.Timestamp);
-render_timestamps = render_timestamps - time_offset;
+if isfield(trial_log.Render, 'data')
+	render_timestamps = trial_log.Render.data(:, trial_log.Render.cn.Timestamp);
+	render_timestamps = render_timestamps - time_offset;
+end
 
 use_PhotoDiodeRenderer = 1;
 % get the photo diode information render information from evenIDE, if available
@@ -148,6 +192,9 @@ if isfield(trial_log, 'PhotoDiodeRenderer') && ~isempty(trial_log.PhotoDiodeRend
 	offset_tmp_idx = find(trial_log.PhotoDiodeRenderer.data(:, trial_log.PhotoDiodeRenderer.cn.Visible) == 1);
 	pd_render_offset_timestamps = trial_log.PhotoDiodeRenderer.data(offset_tmp_idx, trial_log.PhotoDiodeRenderer.cn.RenderTimestamp_ms);
 	pd_render_offset_timestamps = pd_render_offset_timestamps - time_offset;
+	if ~isfield(trial_log.Render, 'data')
+		render_timestamps = pd_render_timestamps;
+	end
 else
 	use_PhotoDiodeRenderer = 0;
 	pd_render_timestamps = render_timestamps;
@@ -258,12 +305,22 @@ figure('Name', 'PhotoDiodeInterOnsetInterval')
 tmp_data_idx = pd_onset_sample_timestamp_diff_list <= (30);
 tmp_data = pd_onset_sample_timestamp_diff_list(tmp_data_idx);
 histogram( tmp_data );
+
 % calculate the screen refresh times:
+% the OLED operates at 120Hz so 
 avg_interframe_delay_ms = mean(tmp_data(find(tmp_data <= 16 & tmp_data >= 5)));
+refresh2frame_ratio = 2;	% the 120 Hz OLED only gets new inputs every other OLED-frame
+% assume CRT @60Hz
+if isnan(avg_interframe_delay_ms)
+	avg_interframe_delay_ms = mean(tmp_data(find(tmp_data <= 20 & tmp_data >= 12)));
+	refresh2frame_ratio = 1;
+end
+
+
 avg_screen_framerate = 1000/avg_interframe_delay_ms;
 disp(['PhotoDiode pulses coming in at ~' num2str(avg_screen_framerate), ' Hz, with ', num2str(avg_interframe_delay_ms), 'ms inter pulse delay']);
 % the OLED panel runds at ~ 120 Hz, so get the best matching 
-disp(['Actual screen refreshes at ~' num2str(0.5 * avg_screen_framerate), ' Hz, with ', num2str(2.0 * avg_interframe_delay_ms), 'ms inter pulse delay']);
+disp(['Actual screen refreshes at ~' num2str((1/refresh2frame_ratio) * avg_screen_framerate), ' Hz, with ', num2str(2.0 * avg_interframe_delay_ms), 'ms inter pulse delay']);
 
 
 % assume that at 2KHz sampling and 60Hz screen refresh and break is at
@@ -272,12 +329,18 @@ sampling_rate_hz = 2000;
 if isnan(avg_screen_framerate)
 	frame_rate_hz = 60.0;
 else
-	frame_rate_hz = (0.5 * avg_screen_framerate); % take the empirically measured frame rate instead?
+	frame_rate_hz = ((1/refresh2frame_ratio) * avg_screen_framerate); % take the empirically measured frame rate instead?
 end
 
 samples_per_frame = sampling_rate_hz / frame_rate_hz;
-min_frames_per_gap = 1.5;
-
+switch refresh2frame_ratio
+	case 1
+		min_frames_per_gap = 3;
+	case 2
+		min_frames_per_gap = 1.5;
+	otherwise
+		min_frames_per_gap = 2;
+end
 
 proto_pd_block_onset_idx = find(pd_onset_diff >= (samples_per_frame * (min_frames_per_gap)));
 proto_pd_block_offset_idx = find(pd_offset_diff >= (samples_per_frame * (min_frames_per_gap)));
@@ -367,6 +430,8 @@ histogram(offset_photodiode_rendertrigger_delta, (30:1:100));
 hold on
 histogram(offset_photodiode_rendertime_delta, (30:1:100));
 hold off
+
+
 
 
 figure('Name', 'BlockOnset versus Trigger/Time per event');
