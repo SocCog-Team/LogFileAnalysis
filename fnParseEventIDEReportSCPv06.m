@@ -35,13 +35,22 @@ mfilepath = fileparts(fq_mfilename);
 calling_dir = pwd;
 
 save_matfile = 1;
-version_string = '.v013';	% we append this to the filename to figure out whether a report file should be re-parsed... this needs to be updated whenthe parser changes
+version_string = '.v014';	% we append this to the filename to figure out whether a report file should be re-parsed... this needs to be updated whenthe parser changes
 
 suffix_string = '';
 test_timing = 0;
 add_method = 'add_row_to_global_struct';		% add_row (really slow, just use for gold truth control), add_row_to_global_struct
 pre_allocate_data = 0;
 batch_grow_data_array = 1;	% should be default
+
+% The TOLED5500 has a relative large variable delay, between receiving a
+% video frame (independent of signal source) and actually rendering the
+% frame, to account for that we measure visual state changes with a
+% photodiode, we can then try to use the timing of these recorded
+% photodioge signals to correct stimulus onset and offset times.
+correct_visual_stimulus_change_ts_from_photodiode = 1;
+
+fixup_struct.correct_visual_stimulus_change_ts_from_photodiode = correct_visual_stimulus_change_ts_from_photodiode;
 
 
 if (test_timing)
@@ -488,7 +497,7 @@ report_struct.info = info;
 
 
 % any specific fix-ups and corrections that need to be done
-report_struct = fnFixEventIDEReportData(report_struct);
+report_struct = fnFixEventIDEReportData(report_struct, fixup_struct);
 
 
 
