@@ -325,7 +325,7 @@ if isfield(output_struct, 'PhotoDiodeRenderer') && (size(output_struct.PhotoDiod
 	title('Block Onset: difference histogram between PhotoDiode Time and RenderTimes');
 	
 	subplot(2, 2, 2)
-	plot(PD_transition_timestamps(find(PD_transition_visibility == 0)), RenderTimestamp_ms_photodiode_diff_list(find(PD_transition_visibility == 1))),
+	plot(PD_transition_timestamps(find(PD_transition_visibility == 1)), RenderTimestamp_ms_photodiode_diff_list(find(PD_transition_visibility == 1))),
 	title('Block Onset: difference between PhotoDiode Time and RenderTimes over time');
 	
 	subplot(2, 2, 3)
