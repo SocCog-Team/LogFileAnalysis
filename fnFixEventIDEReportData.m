@@ -296,20 +296,22 @@ if isfield(output_struct, 'PhotoDiodeRenderer') && (size(output_struct.PhotoDiod
 	for i_PD_transition = 1 : length(PD_transition_timestamps)
 		cur_PD_transition_timestamp = PD_transition_timestamps(i_PD_transition);
 		
-		
 		if (PD_transition_visibility(i_PD_transition) == 1)
 			% Visible == 1 means the renderer was activated -> pd_block_onset
 			tmp_idx = find(pd_block_onset_ms_list >= cur_PD_transition_timestamp, 1);
-			cur_corrected_time = pd_block_onset_ms_list(tmp_idx);
-			output_struct.PhotoDiodeRenderer.data(i_PD_transition, output_struct.PhotoDiodeRenderer.cn.Timestamp) = cur_corrected_time;
-			output_struct.PhotoDiodeRenderer.data(i_PD_transition, output_struct.PhotoDiodeRenderer.cn.RenderTimestamp_ms) = cur_corrected_time;
-			
+			if ~isempty(tmp_idx)
+				cur_corrected_time = pd_block_onset_ms_list(tmp_idx);
+				output_struct.PhotoDiodeRenderer.data(i_PD_transition, output_struct.PhotoDiodeRenderer.cn.Timestamp) = cur_corrected_time;
+				output_struct.PhotoDiodeRenderer.data(i_PD_transition, output_struct.PhotoDiodeRenderer.cn.RenderTimestamp_ms) = cur_corrected_time;
+			end
 		else
 			% Visible == 0 means the renderer was deactivated -> pd_block_offset
 			tmp_idx = find(pd_block_offset_ms_list >= cur_PD_transition_timestamp, 1);
-			cur_corrected_time = pd_block_offset_ms_list(tmp_idx);
-			output_struct.PhotoDiodeRenderer.data(i_PD_transition, output_struct.PhotoDiodeRenderer.cn.Timestamp) = cur_corrected_time;
-			output_struct.PhotoDiodeRenderer.data(i_PD_transition, output_struct.PhotoDiodeRenderer.cn.RenderTimestamp_ms) = cur_corrected_time;
+			if ~isempty(tmp_idx)
+				cur_corrected_time = pd_block_offset_ms_list(tmp_idx);
+				output_struct.PhotoDiodeRenderer.data(i_PD_transition, output_struct.PhotoDiodeRenderer.cn.Timestamp) = cur_corrected_time;
+				output_struct.PhotoDiodeRenderer.data(i_PD_transition, output_struct.PhotoDiodeRenderer.cn.RenderTimestamp_ms) = cur_corrected_time;
+			end
 		end
 		% save the time correction
 		RenderTimestamp_ms_photodiode_diff_list(i_PD_transition) = cur_corrected_time - cur_PD_transition_timestamp;
