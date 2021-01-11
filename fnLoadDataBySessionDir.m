@@ -285,6 +285,15 @@ if isdir(cur_session_id)
 		disp(['Selected session directory (', session_dir,') does not end in sessiondir, odd, but continue as this directory was requested explicitly.']);
 	end
 	session_info = fn_parse_session_id(cur_session_id);
+    
+    switch session_info.setup_id_string
+		case 'SCP_00'
+			SETUP_sub_dir = 'SCP-CTRL-00';
+		case 'SCP_01'
+			SETUP_sub_dir = 'SCP-CTRL-01';
+	end
+    
+    
 else
 	% allow .sessiondir extensions...
 	[~, tmp_cur_session_id, session_dir_extension] = fileparts(cur_session_id);
