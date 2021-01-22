@@ -1,4 +1,4 @@
-function [ out_struct, session_id, session_id_list, session_struct_list, in_session_id ] = fnLoadDataBySessionDir( session_id , override_directive, merge_command )
+function [ out_struct, session_id, session_id_list, session_struct_list, in_session_id, session_dir ] = fnLoadDataBySessionDir( session_id , override_directive, merge_command )
 %FNLOADDATABYSESSIONDIR Summary of this function goes here
 %   Detailed explanation goes here
 % given a sesssion directory load all data files

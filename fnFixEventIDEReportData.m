@@ -86,7 +86,7 @@ end
 % for testing the uncorrcted eventIDE timestamps
 % these show no drift, while the corrected timestamps change a bit over
 % time, linerly, so the correction code needs a bit of corrective work
-timestamp_col = signallog.cn.UncorrectedEventIDE_TimeStamp;
+%timestamp_col = signallog.cn.UncorrectedEventIDE_TimeStamp;
 
 
 if (debug)
