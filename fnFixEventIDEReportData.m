@@ -126,18 +126,26 @@ for i_pd_onset = 1 : length(pd_onset_sample_idx);
 	cur_pd_onset_idx = pd_onset_sample_idx(i_pd_onset);
 	sample_offset = 1;
 	% 3.45 Volts seems to work
-	while (signallog.data(cur_pd_onset_idx+sample_offset, photo_diode_signal_col) >= 3.45)
-		sample_offset = sample_offset + 1;
-		if ((cur_pd_onset_idx+sample_offset) >= n_samples)
-			if ((cur_pd_onset_idx+sample_offset) > n_samples)
-				sample_offset = sample_offset -1;
+	
+	% the last value recorded is a rising flank
+	if ((cur_pd_onset_idx+sample_offset) > n_samples)
+		% or use NaN
+		pd_offset_sample_idx(i_pd_onset) = cur_pd_onset_idx + 0;
+		disp('The last sample of the photodiode data in the signallog is a rising flank (pd_onset). Setting the pd_offset to the same idx.');
+	else
+		while (signallog.data(cur_pd_onset_idx+sample_offset, photo_diode_signal_col) >= 3.45)
+			sample_offset = sample_offset + 1;
+			if ((cur_pd_onset_idx+sample_offset) >= n_samples)
+				if ((cur_pd_onset_idx+sample_offset) > n_samples)
+					sample_offset = sample_offset -1;
+					endhe 
+				% we reached the end and pretend that there is an pd offset
+				% here, so onsets and offsets are paired
+				break
 			end
-			% we reached the end and pretend that there is an pd offset
-			% here, so onsets and offsets are paired
-			break
 		end
+		pd_offset_sample_idx(i_pd_onset) = cur_pd_onset_idx + sample_offset;
 	end
-	pd_offset_sample_idx(i_pd_onset) = cur_pd_onset_idx + sample_offset;
 end
 
 pd_onset_sample_timestamp_list = signallog.data(pd_onset_sample_idx, timestamp_col);
