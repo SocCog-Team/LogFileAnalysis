@@ -1,4 +1,4 @@
-function [ out_struct, session_id, session_id_list, session_struct_list ] = fnLoadDataBySessionDir( session_id , override_directive, merge_command )
+function [ out_struct, session_id, session_id_list, session_struct_list, in_session_id, session_dir ] = fnLoadDataBySessionDir( session_id , override_directive, merge_command )
 %FNLOADDATABYSESSIONDIR Summary of this function goes here
 %   Detailed explanation goes here
 % given a sesssion directory load all data files
@@ -31,6 +31,9 @@ mfilepath = fileparts(fq_mfilename);
 out_struct = struct();
 session_struct_list = {};
 session_id_list = {};
+
+in_session_id = session_id;
+
 
 % % the idea here is to merge all session in session_id and save out as merged_session_id
 % if ~exist('merged_session_id', 'var') || isempty(merged_session_id)
@@ -196,6 +199,10 @@ if strcmp(merge_command, 'merge')
 
 end	
 
+% try to extract the session ID from full paths
+if isdir(session_id)
+    session_id = cur_session_id;
+end
 
 timestamps.(mfilename).end = toc(timestamps.(mfilename).start);
 disp([mfilename, ' took: ', num2str(timestamps.(mfilename).end), ' seconds.']);
@@ -285,6 +292,15 @@ if isdir(cur_session_id)
 		disp(['Selected session directory (', session_dir,') does not end in sessiondir, odd, but continue as this directory was requested explicitly.']);
 	end
 	session_info = fn_parse_session_id(cur_session_id);
+    
+    switch session_info.setup_id_string
+		case 'SCP_00'
+			SETUP_sub_dir = 'SCP-CTRL-00';
+		case 'SCP_01'
+			SETUP_sub_dir = 'SCP-CTRL-01';
+	end
+    
+    
 else
 	% allow .sessiondir extensions...
 	[~, tmp_cur_session_id, session_dir_extension] = fileparts(cur_session_id);
