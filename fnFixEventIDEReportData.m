@@ -138,7 +138,7 @@ for i_pd_onset = 1 : length(pd_onset_sample_idx);
 			if ((cur_pd_onset_idx+sample_offset) >= n_samples)
 				if ((cur_pd_onset_idx+sample_offset) > n_samples)
 					sample_offset = sample_offset -1;
-					endhe 
+				end
 				% we reached the end and pretend that there is an pd offset
 				% here, so onsets and offsets are paired
 				break
@@ -325,7 +325,7 @@ if isfield(output_struct, 'PhotoDiodeRenderer') && (size(output_struct.PhotoDiod
 		RenderTimestamp_ms_photodiode_diff_list(i_PD_transition) = cur_corrected_time - cur_PD_transition_timestamp;
 	end
 	output_struct.FixUpReport{end+1} = 'Corrected the PhotoDiodeRenderer times from recorded PhotoDiode data';
-
+	
 	
 	PD_overview_fh = figure('Name', 'PhotoDiodeBlockTimes minus EventIDE RenderTimes');
 	subplot(2, 2, 1)
@@ -369,7 +369,7 @@ if isfield(output_struct, 'PhotoDiodeRenderer') && (size(output_struct.PhotoDiod
 		end
 	end
 	output_struct.FixUpReport{end+1} = 'Corrected the Render times from recorded PhotoDiode data';
-
+	
 	
 	% prepare the data record
 	to_be_corrected_data_filed_list = {'A_InitialFixationOnsetTime_ms', 'B_InitialFixationOnsetTime_ms', ...
