@@ -251,6 +251,9 @@ if ~isempty(regexp(TrackerLog_Name, 'signallog'))
 	column_separator = ',';
 	replace_decimal_coma_by_dot = 0;
 	fixup_userfield_columns = 0;
+	fixup_userfield_columns = 2; % to deal with partially written files where the last line might be incomplete
+	%TODO test for the last line being incomplete and only fix incomplete
+	%lines.
 end
 % extract the tracker name from the file name
 info.tracker_name = fn_extract_trackername_from_filename(TrackerLog_Name, '.TID_', ['.', log_type]);
@@ -428,6 +431,7 @@ if (fixup_userfield_columns == 2) && (exist(TmpTrackerLog_FQN, 'file') ~= 2)
 	
 	disp(['Trackerlog fix-ups took: ', num2str(tmpToc), ' seconds (', num2str(floor(tmpToc / 60), '%3.0f'),' minutes, ', num2str(tmpToc - (60 * floor(tmpToc / 60))),' seconds)']);
 end
+
 
 if (exist(TmpTrackerLog_FQN, 'file') == 2) && (~(exist(gzip_TmpTrackerLog_FQN, 'file') == 2))
 	disp(['Gzipping compressed fixed trackerlog: ', TmpTrackerLog_FQN])
@@ -616,7 +620,7 @@ if (add_corrected_tracker_timestamps)
 			% as well as timing columns
 			% to deduce and track on and offsets for each finger... (we really only want/need the centroid/average)
 			col_data = [];
-		case 'nisignalfilewriter';
+		case 'nisignalfilewriter'
 			% here the issue is that the spacing og the NI sampling
 			% probably is relative precise, but the event ide time stamps
 			% are not, so we simply try to spece the error out, by taking
@@ -950,7 +954,7 @@ if (expand_GLM_coefficients)
 			TmpGLMCoefficientsUnparsedStringCharArray = strrep(TmpGLMCoefficientsUnparsedStringCharArray, ',', '.');
 		end
 		TmpGLMCoefficientsCellArray = textscan(TmpGLMCoefficientsUnparsedStringCharArray','GainX=%f OffsetX=%f GainY=%f OffsetY=%f', size(TextscanOutputCellArray{GLM_CoefficientsColumnIdx}, 1));
-		
+
 		% now merge the expanded columns into TextscanOutputCellArray,
 		% cell_header and cell_type_list
 		if (GLM_CoefficientsColumnIdx == 1)

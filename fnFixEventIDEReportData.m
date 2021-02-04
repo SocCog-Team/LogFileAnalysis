@@ -45,6 +45,17 @@ if isfield(fixup_struct, 'correct_visual_stimulus_change_ts_from_photodiode') &&
 	end
 end
 
+% correct TargetOffsetTimes_ms from RendererState
+
+
+% sanitize TialStart timestamp to data table
+
+% add trial end timestamp to data table 
+
+% add estimated Reward start times uness they exist already
+
+
+
 return
 end
 
