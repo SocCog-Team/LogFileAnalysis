@@ -25,6 +25,12 @@ if (((isfield(input_struct.SessionByTrial, 'cn')) && (isfield(input_struct.Sessi
 end
 
 
+% correct TargetOffsetTimes_ms from RendererState
+if isfield(fixup_struct, 'correct_TargetOffsetTimes_ms_from_RenderState') && (fixup_struct.correct_TargetOffsetTimes_ms_from_RenderState)
+	output_struct = fn_correct_TargetOffsetTimes_ms_from_RenderState(output_struct);
+end
+
+
 % The TOLED5500 has a relative large variable delay, between receiving a
 % video frame (independent of signal source) and actually rendering the
 % frame, to account for that we measure visual state changes with a
@@ -45,16 +51,12 @@ if isfield(fixup_struct, 'correct_visual_stimulus_change_ts_from_photodiode') &&
 	end
 end
 
-% correct TargetOffsetTimes_ms from RendererState
-
-
-% sanitize TialStart timestamp to data table
+% sanitize TrialStart timestamp to data table
 
 % add trial end timestamp to data table 
+% use the Paradigm start time of the ITI state unless trialend is defined.
 
-% add estimated Reward start times uness they exist already
-
-
+% add estimated Reward start times unless they exist already
 
 return
 end
@@ -370,8 +372,8 @@ if isfield(output_struct, 'PhotoDiodeRenderer') && (size(output_struct.PhotoDiod
 	output_struct.Render.data(:, output_struct.Render.cn.uncorrected_Timestamp) = output_struct.Render.data(:, output_struct.Render.cn.Timestamp);
 	
 	for i_PhotoDiodeRendererChange = 1 : size(output_struct.PhotoDiodeRenderer.data, 1)
-		cur_corrected_RenderTimestamp_ms = output_struct.PhotoDiodeRenderer.data(i_PD_transition, output_struct.PhotoDiodeRenderer.cn.RenderTimestamp_ms);
-		cur_uncorrected_RenderTimestamp_ms  = output_struct.PhotoDiodeRenderer.data(i_PD_transition, output_struct.PhotoDiodeRenderer.cn.uncorrected_RenderTimestamp_ms);
+		cur_corrected_RenderTimestamp_ms = output_struct.PhotoDiodeRenderer.data(i_PhotoDiodeRendererChange, output_struct.PhotoDiodeRenderer.cn.RenderTimestamp_ms);
+		cur_uncorrected_RenderTimestamp_ms  = output_struct.PhotoDiodeRenderer.data(i_PhotoDiodeRendererChange, output_struct.PhotoDiodeRenderer.cn.uncorrected_RenderTimestamp_ms);
 		% find the occurance of uncorrected timestamp and replace with
 		% corrected value
 		tmp_idx = find(output_struct.Render.data(:, output_struct.Render.cn.Timestamp) == cur_uncorrected_RenderTimestamp_ms);
@@ -382,6 +384,29 @@ if isfield(output_struct, 'PhotoDiodeRenderer') && (size(output_struct.PhotoDiod
 	output_struct.FixUpReport{end+1} = 'Corrected the Render times from recorded PhotoDiode data';
 	
 	
+	to_be_corrected_data_filed_list = {'Timestamp', 'RenderTimestamp_ms'};
+	for i_field = 1 : length(to_be_corrected_data_filed_list)
+		cur_fieldname = to_be_corrected_data_filed_list{i_field};
+		cur_uncorrected_fieldname = ['uncorrected_', cur_fieldname];
+		output_struct.RendererState.header{end + 1} = cur_uncorrected_fieldname;
+		output_struct.RendererState.cn = local_get_column_name_indices(output_struct.RendererState.header);
+		output_struct.RendererState.data(:, output_struct.RendererState.cn.(cur_uncorrected_fieldname)) = output_struct.RendererState.data(:, output_struct.RendererState.cn.(cur_fieldname));
+		
+		for i_PhotoDiodeRendererChange = 1 : size(output_struct.PhotoDiodeRenderer.data, 1)
+			cur_corrected_RenderTimestamp_ms = output_struct.PhotoDiodeRenderer.data(i_PhotoDiodeRendererChange, output_struct.PhotoDiodeRenderer.cn.RenderTimestamp_ms);
+			cur_uncorrected_RenderTimestamp_ms  = output_struct.PhotoDiodeRenderer.data(i_PhotoDiodeRendererChange, output_struct.PhotoDiodeRenderer.cn.uncorrected_RenderTimestamp_ms);
+			% find the occurance of uncorrected timestamp and replace with
+			% corrected value
+			tmp_idx = find(output_struct.RendererState.data(:, output_struct.RendererState.cn.(cur_uncorrected_fieldname)) == cur_uncorrected_RenderTimestamp_ms);
+			if ~isempty(tmp_idx)
+				output_struct.RendererState.data(:, output_struct.RendererState.cn.(cur_fieldname)) = cur_corrected_RenderTimestamp_ms;
+			end
+		end
+		output_struct.FixUpReport{end+1} = ['Corrected the RendererState times from recorded PhotoDiode data for ', cur_fieldname];
+	end
+	
+	
+	
 	% prepare the data record
 	to_be_corrected_data_filed_list = {'A_InitialFixationOnsetTime_ms', 'B_InitialFixationOnsetTime_ms', ...
 		'A_TargetOnsetTime_ms', 'B_TargetOnsetTime_ms', ...
@@ -389,14 +414,19 @@ if isfield(output_struct, 'PhotoDiodeRenderer') && (size(output_struct.PhotoDiod
 		'A_GoSignalTime_ms', 'B_GoSignalTime_ms'};
 	for i_field = 1 : length(to_be_corrected_data_filed_list)
 		cur_fieldname = to_be_corrected_data_filed_list{i_field};
+		
+		if strcmp('A_TargetOffsetTime_ms', cur_fieldname)
+			disp('Doh...');
+		end
+		
 		cur_uncorrected_fieldname = ['uncorrected_', cur_fieldname];
 		output_struct.header{end + 1} = cur_uncorrected_fieldname;
 		output_struct.cn = local_get_column_name_indices(output_struct.header);
 		output_struct.data(:, output_struct.cn.(cur_uncorrected_fieldname)) = output_struct.data(:, output_struct.cn.(cur_fieldname));
 		
 		for i_PhotoDiodeRendererChange = 1 : size(output_struct.PhotoDiodeRenderer.data, 1)
-			cur_corrected_RenderTimestamp_ms = output_struct.PhotoDiodeRenderer.data(i_PD_transition, output_struct.PhotoDiodeRenderer.cn.RenderTimestamp_ms);
-			cur_uncorrected_RenderTimestamp_ms  = output_struct.PhotoDiodeRenderer.data(i_PD_transition, output_struct.PhotoDiodeRenderer.cn.uncorrected_RenderTimestamp_ms);
+			cur_corrected_RenderTimestamp_ms = output_struct.PhotoDiodeRenderer.data(i_PhotoDiodeRendererChange, output_struct.PhotoDiodeRenderer.cn.RenderTimestamp_ms);
+			cur_uncorrected_RenderTimestamp_ms  = output_struct.PhotoDiodeRenderer.data(i_PhotoDiodeRendererChange, output_struct.PhotoDiodeRenderer.cn.uncorrected_RenderTimestamp_ms);
 			% find the occurance of uncorrected timestamp and replace with
 			% corrected value
 			tmp_idx = find(output_struct.data(:, output_struct.cn.(cur_uncorrected_fieldname)) == cur_uncorrected_RenderTimestamp_ms);
@@ -541,5 +571,57 @@ end
 
 ByTrial_struct.cn = local_get_column_name_indices(ByTrial_struct.header);
 
+return
+end
+
+
+function [ output_struct ] = fn_correct_TargetOffsetTimes_ms_from_RenderState( input_struct )
+output_struct = input_struct;
+
+%check whether TargetOffsetTimes are believable
+
+
+trial_starttime_ms = input_struct.data(:, input_struct.cn.Timestamp);
+TargetOffsetTimes_ms = input_struct.data(:, input_struct.cn.A_TargetOffsetTime_ms);
+TargetOnsetTimes_ms = input_struct.data(:, input_struct.cn.A_TargetOnsetTime_ms);
+
+TargetOnsetOffsetDuration_ms = TargetOffsetTimes_ms - TargetOnsetTimes_ms;
+
+%isequal(input_struct.data(:, input_struct.cn.A_TargetOffsetTime_ms), input_struct.data(:, input_struct.cn.B_TargetOffsetTime_ms));
+
+delta_TargetOffsetTimes_ms = TargetOffsetTimes_ms - trial_starttime_ms;
+
+% zeros are  special values and we can safely ignore them
+zero_TargetOffsetTimes_ms_idx = find(TargetOffsetTimes_ms ~= 0);
+zero_trial_starttime_ms_idx = find(trial_starttime_ms ~= 0);
+good_trial_idx = intersect(zero_TargetOffsetTimes_ms_idx, zero_trial_starttime_ms_idx);
+
+% but only for non reawarded trials
+% ENUM_idx allows for C# enums starting at 0, by adding an offset of one to
+% the values
+REWARD_OutcomeENUM_idx = input_struct.Enums.Outcomes.EnumStruct.data(input_struct.Enums.Outcomes.EnumStruct.cn.REWARD)+1;
+% input_struct.unique_lists.A_OutcomeENUM{REWARD_OutcomeENUM_idx}
+A_rewarded_trial_idx = find(input_struct.data(:, input_struct.cn.A_OutcomeENUM_idx) == REWARD_OutcomeENUM_idx);
+B_rewarded_trial_idx = find(input_struct.data(:, input_struct.cn.B_OutcomeENUM_idx) == REWARD_OutcomeENUM_idx);
+rewarded_trial_idx = intersect(A_rewarded_trial_idx, B_rewarded_trial_idx);
+% rewarded trials should have no zero TargetOffsetTimes_ms or trial_starttime_ms
+good_trial_idx = union(good_trial_idx, rewarded_trial_idx);
+
+
+% negative deltas should not exist
+max_delta = max(delta_TargetOffsetTimes_ms(good_trial_idx));
+min_delta = min(delta_TargetOffsetTimes_ms(good_trial_idx));
+if (min_delta < 0)
+	fix_TargetOffsetTimes_ms = 1;
+else
+	fix_TargetOffsetTimes_ms = 0;
+end
+	
+if (fix_TargetOffsetTimes_ms)
+	% in any given trial TargetOffsetTimes_ms should correspond roughly
+	% with the start of 
+	error('Not implemented yet...');
+	output_struct.FixUpReport{end+1} = ['Corrected TargetOffsetTimes_ms from RenderState'];
+end
 return
 end
