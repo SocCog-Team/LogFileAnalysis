@@ -52,6 +52,11 @@ correct_visual_stimulus_change_ts_from_photodiode = 1;
 
 fixup_struct.correct_visual_stimulus_change_ts_from_photodiode = correct_visual_stimulus_change_ts_from_photodiode;
 
+correct_TargetOffsetTimes_ms_from_RenderState = 1;
+fixup_struct.correct_TargetOffsetTimes_ms_from_RenderState = correct_TargetOffsetTimes_ms_from_RenderState;
+
+
+
 
 if (test_timing)
 	suffix_string = [suffix_string, '.', add_method];
