@@ -645,7 +645,7 @@ if (add_corrected_tracker_timestamps)
 		case {'pupillabs', 'eyelink'}
 			% for the eyetrackers with reasonably reliable timestamps we
 			% only need eventIDe and tracker times for corrections
-			[col_header, col_data] = fn_extract_corrected_eventIDE_timestamps(info.tracker_name, data_struct.data(:, data_struct.cn.EventIDE_TimeStamp), ...
+			[col_header, col_data] = fn_extract_corrected_eventIDE_timestamps(info.tracker_name, data_struct.data(:, data_struct.cn.EventIDE_TimeStamp, TrackerLog_FQN), ...
 				data_struct.data(:, tracker_timestamp_column));
 		case 'pqlab'
 			% here it gets complicated we need to look at some data columns
@@ -659,7 +659,7 @@ if (add_corrected_tracker_timestamps)
 			% first and last timestamps and just interpoate the values
 			% inbetween
 			tracker_timestamp_column = data_struct.cn.EventIDE_TimeStamp;
-			[col_header, col_data] = fn_extract_corrected_eventIDE_timestamps(info.tracker_name, data_struct.data(:, data_struct.cn.EventIDE_TimeStamp), ...
+			[col_header, col_data] = fn_extract_corrected_eventIDE_timestamps(info.tracker_name, data_struct.data(:, data_struct.cn.EventIDE_TimeStamp, TrackerLog_FQN), ...
 				data_struct.data(:, tracker_timestamp_column));
 			
 		otherwise
@@ -1032,7 +1032,7 @@ out_data_struct = fn_handle_data_struct('remove_columns', out_data_struct, {'REM
 return
 end
 
-function [ col_header, corrected_EventIDE_TimeStamp_list ] = fn_extract_corrected_eventIDE_timestamps( tracker_name, EventIDE_TimeStamp_list, Tracker_Time_Stamp_list )
+function [ col_header, corrected_EventIDE_TimeStamp_list ] = fn_extract_corrected_eventIDE_timestamps( tracker_name, EventIDE_TimeStamp_list, Tracker_Time_Stamp_list, TrackerLog_FQN )
 % EventIDE_TimeStamps only recodr the time eventide imported a sample,
 % while Tracker_Time_Stamps (for reliable Trackers) are closer to the real
 % time of acquisition, use the traker timestamps to adjust the eventide
@@ -1198,7 +1198,7 @@ end
 
 
 if (debug)
-	figure('Name', 'EventIDE_TimeStamp_list - corrected_EventIDE_TimeStamp_list');
+	timestamp_correction_fh = figure('Name', 'EventIDE_TimeStamp_list - corrected_EventIDE_TimeStamp_list');
 	subplot(4, 1, 1)
 	hold on 
 	plot(EventIDE_TimeStamp_list - EventIDE_TimeStamp_list(1), 'Color', [1 0 0]);
@@ -1225,6 +1225,13 @@ if (debug)
 	
 	subplot(4, 1, 4)
 	h3 = histogram((EventIDE_TimeStamp_list - EventIDE_TimeStamp_list(1)) - (sort(corrected_EventIDE_TimeStamp_list) - corrected_EventIDE_TimeStamp_list(1)));
+	
+	
+	[TrackerLog_path, TrackerLog_name] = fileparts(TrackerLog_FQN);
+	write_out_figure(timestamp_correction_fh, fullfile(TrackerLog_path, [TrackerLog_name, 'Delta_corrected_ubcorrected_EventIDE_TimeStamps.pdf']));
+	% for automated processing, rather save a plot than keep a figure
+	% open...
+	close(timestamp_correction_fh);
 end
 
 return
