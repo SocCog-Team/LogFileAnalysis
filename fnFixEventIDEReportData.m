@@ -209,7 +209,7 @@ pd_onset_sample_timestamp_diff_list = diff([pd_onset_sample_timestamp_list(1); p
 pd_offset_sample_timestamp_diff_list = diff([pd_offset_sample_timestamp_list(1); pd_offset_sample_timestamp_list]);
 
 
-histogram_fh = figure('Name', 'PhotoDiodeInterOnsetInterval')
+histogram_fh = figure('Name', 'PhotoDiodeInterOnsetInterval');
 %histogram((pd_onset_sample_timestamp_diff_list(find((pd_onset_sample_timestamp_diff_list * 1000) < 30)) * 1000));
 %pd_onset_sample_timestamp_diff_list * 1000
 tmp_data_idx = pd_onset_sample_timestamp_diff_list <= (30); % 30 ms would be 1/0.03sec or 33.3 Hz, we use refreshrates larger than that
