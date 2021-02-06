@@ -125,9 +125,9 @@ end
 if (debug)
 	% sanity check, plot some of the data, say 5 minutes from the middle
 	midtime_ms = signallog.data(floor(n_samples*0.5), timestamp_col);
-	start_idx = find(signallog.data(:, timestamp_col) >= (midtime_ms - (0.05 * 60 * 1000)));
+	start_idx = find(signallog.data(:, timestamp_col) >= (midtime_ms - (5 * 60 * 2000)));
 	start_idx = start_idx(1);
-	end_idx = find(signallog.data(:, timestamp_col) < (midtime_ms + (0.05 * 60 * 1000)));
+	end_idx = find(signallog.data(:, timestamp_col) < (midtime_ms + (5 * 60 * 2000)));
 	end_idx = end_idx(end);
 	figure('Name', 'PhotodiodeSignal?');
 	plot(signallog.data(start_idx:end_idx, timestamp_col), signallog.data(start_idx:end_idx, photo_diode_signal_col));
@@ -139,6 +139,7 @@ diff_pd_voltage = diff(signallog.data(:, photo_diode_signal_col));
 if (debug)
 	hold on
 	plot(diff_pd_voltage);
+	%plot(signallog.data(:, :));
 	plot(signallog.data(:, photo_diode_signal_col));
 	hold off
 end
@@ -184,6 +185,12 @@ end
 pd_onset_sample_timestamp_list = signallog.data(pd_onset_sample_idx, timestamp_col);
 pd_offset_sample_timestamp_list = signallog.data(pd_offset_sample_idx, timestamp_col);
 
+if isempty(pd_onset_sample_timestamp_list) && isempty(pd_offset_sample_timestamp_list)
+	disp(['fnFixVisualChangeTimesFromPhotodiodeSignallog: No photodiode onsets or offsets detected, bailing out...']);
+	output_struct.FixUpReport{end+1} = 'No PhotoDiode data found; could not correct the PhotoDiodeRenderer times from recorded PhotoDiode data';
+	return
+end
+	
 pd_pulse_dur_ms_list = pd_offset_sample_timestamp_list - pd_onset_sample_timestamp_list;
 %histogram(pd_pulse_dur_ms_list)
 % these should all be canonical, so averaging will work
