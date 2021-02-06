@@ -378,7 +378,7 @@ if isfield(output_struct, 'PhotoDiodeRenderer') && (size(output_struct.PhotoDiod
 		% corrected value
 		tmp_idx = find(output_struct.Render.data(:, output_struct.Render.cn.Timestamp) == cur_uncorrected_RenderTimestamp_ms);
 		if ~isempty(tmp_idx)
-			output_struct.Render.data(:, output_struct.Render.cn.Timestamp) = cur_corrected_RenderTimestamp_ms;
+			output_struct.Render.data(tmp_idx, output_struct.Render.cn.Timestamp) = cur_corrected_RenderTimestamp_ms;
 		end
 	end
 	output_struct.FixUpReport{end+1} = 'Corrected the Render times from recorded PhotoDiode data';
@@ -399,7 +399,7 @@ if isfield(output_struct, 'PhotoDiodeRenderer') && (size(output_struct.PhotoDiod
 			% corrected value
 			tmp_idx = find(output_struct.RendererState.data(:, output_struct.RendererState.cn.(cur_uncorrected_fieldname)) == cur_uncorrected_RenderTimestamp_ms);
 			if ~isempty(tmp_idx)
-				output_struct.RendererState.data(:, output_struct.RendererState.cn.(cur_fieldname)) = cur_corrected_RenderTimestamp_ms;
+				output_struct.RendererState.data(tmp_idx, output_struct.RendererState.cn.(cur_fieldname)) = cur_corrected_RenderTimestamp_ms;
 			end
 		end
 		output_struct.FixUpReport{end+1} = ['Corrected the RendererState times from recorded PhotoDiode data for ', cur_fieldname];
@@ -415,10 +415,6 @@ if isfield(output_struct, 'PhotoDiodeRenderer') && (size(output_struct.PhotoDiod
 	for i_field = 1 : length(to_be_corrected_data_filed_list)
 		cur_fieldname = to_be_corrected_data_filed_list{i_field};
 		
-		if strcmp('A_TargetOffsetTime_ms', cur_fieldname)
-			disp('Doh...');
-		end
-		
 		cur_uncorrected_fieldname = ['uncorrected_', cur_fieldname];
 		output_struct.header{end + 1} = cur_uncorrected_fieldname;
 		output_struct.cn = local_get_column_name_indices(output_struct.header);
@@ -431,7 +427,7 @@ if isfield(output_struct, 'PhotoDiodeRenderer') && (size(output_struct.PhotoDiod
 			% corrected value
 			tmp_idx = find(output_struct.data(:, output_struct.cn.(cur_uncorrected_fieldname)) == cur_uncorrected_RenderTimestamp_ms);
 			if ~isempty(tmp_idx)
-				output_struct.data(:, output_struct.cn.(cur_fieldname)) = cur_corrected_RenderTimestamp_ms;
+				output_struct.data(tmp_idx, output_struct.cn.(cur_fieldname)) = cur_corrected_RenderTimestamp_ms;
 			end
 		end
 		output_struct.FixUpReport{end+1} = ['Corrected the data times from recorded PhotoDiode data for ', cur_fieldname];
@@ -612,7 +608,7 @@ good_trial_idx = union(good_trial_idx, rewarded_trial_idx);
 max_delta = max(delta_TargetOffsetTimes_ms(good_trial_idx));
 min_delta = min(delta_TargetOffsetTimes_ms(good_trial_idx));
 if (min_delta < 0)
-	fix_TargetOffsetTimes_ms = 1;
+	fix_TargetOffsetTimes_ms = 0;
 else
 	fix_TargetOffsetTimes_ms = 0;
 end
