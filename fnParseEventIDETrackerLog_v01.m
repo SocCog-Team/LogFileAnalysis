@@ -570,7 +570,7 @@ switch add_method
 
 					for i_cell = 1 : n_cells
 						if (numel_per_cell_list(i_cell) > min(numel_per_cell_list(:)))
-							disp(['Adjusting cell ', num2str(i_cell), ' of ', num2str(n_cells), ' from ', num2str(numel_per_cell_list(i_cell)), 'to ', num2str(min(numel_per_cell_list(:))), '.']);
+							disp(['Adjusting cell ', num2str(i_cell), ' of ', num2str(n_cells), ' from ', num2str(numel_per_cell_list(i_cell)), ' to ', num2str(min(numel_per_cell_list(:))), '.']);
 							TrackerLogCell{i_cell} = TrackerLogCell{i_cell}(1:min(numel_per_cell_list(:)));
 						end
 					end
