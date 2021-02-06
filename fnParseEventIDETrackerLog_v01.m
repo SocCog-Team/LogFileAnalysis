@@ -251,7 +251,7 @@ if ~isempty(regexp(TrackerLog_Name, 'signallog'))
 	column_separator = ',';
 	replace_decimal_coma_by_dot = 0;
 	fixup_userfield_columns = 0;
-	fixup_userfield_columns = 2; % to deal with partially written files where the last line might be incomplete
+	%fixup_userfield_columns = 2; % to deal with partially written files where the last line might be incomplete
 	%TODO test for the last line being incomplete and only fix incomplete
 	%lines.
 end
@@ -549,6 +549,38 @@ switch add_method
 			TrackerLogCell = textscan(TrackerLog_fd, tmp_fast.column_type_string, 'Delimiter', column_separator, 'HeaderLines', length(info_header_line_list), 'ReturnOnError', 0);
 			tmpToc = toc(timestamps.(mfilename).start);
 			disp(['Trackerlog textscan took: ', num2str(tmpToc), ' seconds (', num2str(floor(tmpToc / 60), '%3.0f'),' minutes, ', num2str(tmpToc - (60 * floor(tmpToc / 60))),' seconds)']);
+			
+			%[cells_are_of_equal_length, numel_per_cell_list] = fn_get_numel_per_cell(TrackerLogCell);
+			n_cells = length(TrackerLogCell);
+			cells_are_of_equal_length = 0;
+			numel_per_cell_list = zeros(size(TrackerLogCell));
+			
+			for i_cell = 1 : n_cells
+				numel_per_cell_list(i_cell) = length(TrackerLogCell{i_cell});
+			end
+			
+			if (min(numel_per_cell_list(:) == max(numel_per_cell_list(:))))
+				cells_are_of_equal_length = 1;
+			end
+			
+			if ~cells_are_of_equal_length
+				if ismember(log_type, {'signallog'})
+					% make sure all cells are of equal length
+					disp(['Forcing all textscan cells to minimum length of ', num2str(min(numel_per_cell_list(:))), ', (', num2str(n_cells), ' cells, max ', num2str(max(numel_per_cell_list(:))), ').']);
+
+					for i_cell = 1 : n_cells
+						if (numel_per_cell_list(i_cell) > min(numel_per_cell_list(:)))
+							disp(['Adjusting cell ', num2str(i_cell), ' of ', num2str(n_cells), ' from ', num2str(numel_per_cell_list(i_cell)), 'to ', num2str(min(numel_per_cell_list(:))), '.']);
+							TrackerLogCell{i_cell} = TrackerLogCell{i_cell}(1:min(numel_per_cell_list(:)));
+						end
+					end
+				else
+					% figure out how to deal with that properly later,
+					% could be used to make the fix-up step conditional on
+					% naive parsing failing?
+					error(['Individual columns are of different length, but the log type is not tolerant to this condition.']);
+				end
+			end
 			% do not try to convert empty log files
 			if ~isempty(TrackerLogCell{1})
 				data_struct = fnConvertTextscanOutputToDataStruct(TrackerLogCell, tmp_fast.header, tmp_fast.column_type_list, expand_GLM_coefficients, replace_coma_by_dot, OutOfBoundsValue);
@@ -1225,3 +1257,19 @@ tracker_name = TrackerLog_Name(start_idx:stop_idx);
 
 return
 end
+
+% function [ cells_are_of_equal_length, numel_per_cell_list ] = fn_get_numel_per_cell( TrackerLogCell )
+% 
+% n_cells = length(TrackerLogCell);
+% cells_are_of_equal_length = 0;
+% numel_per_cell_list = zeros(size(TrackerLogCell));
+% 
+% for i_cell = 1 : n_cells
+% 	numel_per_cell_list(i_cell) = length(TrackerLogCell{i_cell});
+% end
+% 
+% if (min(numel_per_cell_list(:) == max(numel_per_cell_list(:))))
+% 	cells_are_of_equal_length = 1;
+% end	
+% return
+% end
