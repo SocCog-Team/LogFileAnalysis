@@ -35,7 +35,7 @@ mfilepath = fileparts(fq_mfilename);
 calling_dir = pwd;
 
 save_matfile = 1;
-version_string = '.v014';	% we append this to the filename to figure out whether a report file should be re-parsed... this needs to be updated whenthe parser changes
+version_string = '.v015';	% we append this to the filename to figure out whether a report file should be re-parsed... this needs to be updated whenthe parser changes
 
 suffix_string = '';
 test_timing = 0;
@@ -49,12 +49,13 @@ batch_grow_data_array = 1;	% should be default
 % photodiode, we can then try to use the timing of these recorded
 % photodioge signals to correct stimulus onset and offset times.
 correct_visual_stimulus_change_ts_from_photodiode = 1;
-
 fixup_struct.correct_visual_stimulus_change_ts_from_photodiode = correct_visual_stimulus_change_ts_from_photodiode;
 
 correct_TargetOffsetTimes_ms_from_RenderState = 1;
 fixup_struct.correct_TargetOffsetTimes_ms_from_RenderState = correct_TargetOffsetTimes_ms_from_RenderState;
 
+add_trial_start_and_end_times = 1;
+fixup_struct.add_trial_start_and_end_times = add_trial_start_and_end_times;
 
 
 

@@ -55,6 +55,26 @@ end
 
 % add trial end timestamp to data table 
 % use the Paradigm start time of the ITI state unless trialend is defined.
+% to get a over inclusive trial definition, a trial starts with the ITI...
+% this definition is not useful for temporal alignment, but sufficient for
+% sanity checking
+if isfield(fixup_struct, 'add_trial_start_and_end_times') && (fixup_struct.add_trial_start_and_end_times)
+	if isfield(output_struct, 'ParadigmState')
+		ITI_ParadigmStateENUM_idx = input_struct.Enums.ParadigmStates.EnumStruct.data(input_struct.Enums.ParadigmStates.EnumStruct.cn.ITI)+1;
+		ITI_para_instance_idx = find(output_struct.ParadigmState.data(:, output_struct.ParadigmState.cn.ParadigmStateENUM_idx) == ITI_ParadigmStateENUM_idx);
+		n_trials = size(output_struct.data, 1);
+		if (length(ITI_para_instance_idx) == n_trials + 1)
+			TrialStartTime_ms = output_struct.ParadigmState.data(ITI_para_instance_idx(1:end-1), output_struct.ParadigmState.cn.Timestamp);
+			TrialStartEnd_ms = output_struct.ParadigmState.data(ITI_para_instance_idx(2:end), output_struct.ParadigmState.cn.Timestamp);
+			% add to the output struct
+			output_struct = fn_handle_data_struct('add_columns', output_struct, [TrialStartTime_ms, TrialStartEnd_ms], {'TrialStartTime_ms', 'TrialStartEnd_ms'});
+		else
+			error('Does this actually happen?');
+		end
+
+		output_struct.FixUpReport{end+1} = ['Added TrialStartTime_ms and TrialStartEnd_ms to the triallog data table, based on the ITI.'];
+	end	
+end
 
 % add estimated Reward start times unless they exist already
 
@@ -189,12 +209,17 @@ pd_onset_sample_timestamp_diff_list = diff([pd_onset_sample_timestamp_list(1); p
 pd_offset_sample_timestamp_diff_list = diff([pd_offset_sample_timestamp_list(1); pd_offset_sample_timestamp_list]);
 
 
-figure('Name', 'PhotoDiodeInterOnsetInterval')
+histogram_fh = figure('Name', 'PhotoDiodeInterOnsetInterval')
 %histogram((pd_onset_sample_timestamp_diff_list(find((pd_onset_sample_timestamp_diff_list * 1000) < 30)) * 1000));
 %pd_onset_sample_timestamp_diff_list * 1000
 tmp_data_idx = pd_onset_sample_timestamp_diff_list <= (30); % 30 ms would be 1/0.03sec or 33.3 Hz, we use refreshrates larger than that
 tmp_data = pd_onset_sample_timestamp_diff_list(tmp_data_idx);
 histogram( tmp_data );
+
+if ~debug
+	close(histogram_fh);
+end
+
 % this should be
 median_inter_onset_dur_ms = median(pd_onset_sample_timestamp_diff_list);
 %mean_inter_onset_dur_ms = mean(pd_onset_sample_timestamp_diff_list);
@@ -256,7 +281,7 @@ pd_block_dur_ms = pd_block_offset_ms_list - pd_block_onset_ms_list;
 pd_inter_block_dur_ms = [(pd_block_onset_ms_list(2:end) - pd_block_offset_ms_list(1:end-1)); 0];
 
 
-figure('Name', 'PhotoDiode Signal with Block Onset and Offset');
+pd_fh = figure('Name', 'PhotoDiode Signal with Block Onset and Offset');
 legend_list = {};
 hold on
 legend_list{end+1} = 'PhotoDiode';
@@ -293,6 +318,10 @@ legend_list{end+1} = 'PhotoDiodeRenderer_offset';
 
 hold off
 %scrollplot;
+write_out_figure(pd_fh, fullfile(signallog_base_dir, ['PhotoDiode_Signal_with_Block_Onset_and_Offset', '.pdf']));
+if ~debug
+	close(pd_fh);
+end
 
 % now find the corresponding events for the photodiode
 
@@ -359,6 +388,9 @@ if isfield(output_struct, 'PhotoDiodeRenderer') && (size(output_struct.PhotoDiod
 	
 	write_out_figure(PD_overview_fh, fullfile(signallog_base_dir, [signallog_base_name, '.VisualOnsetOffset.pdf']))
 	
+	if ~debug
+		close(PD_overview_fh);
+	end
 	
 	
 	% now correct
@@ -608,7 +640,7 @@ good_trial_idx = union(good_trial_idx, rewarded_trial_idx);
 max_delta = max(delta_TargetOffsetTimes_ms(good_trial_idx));
 min_delta = min(delta_TargetOffsetTimes_ms(good_trial_idx));
 if (min_delta < 0)
-	fix_TargetOffsetTimes_ms = 0;
+	fix_TargetOffsetTimes_ms = 1;
 else
 	fix_TargetOffsetTimes_ms = 0;
 end
