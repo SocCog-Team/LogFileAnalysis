@@ -27,6 +27,9 @@ clear global data_struct % clear on return as well?
 ReplaceDecimalComaWithDecimalDot = 0;
 CheckForDecimalSeparator = 1;
 
+report_struct = struct();
+
+
 timestamps.(mfilename).start = tic;
 disp(['Starting: ', mfilename]);
 dbstop if error
@@ -501,10 +504,11 @@ report_struct.ErrorReport = ErrorReport_struct;
 % add the additional information structure
 report_struct.info = info;
 
-
-% any specific fix-ups and corrections that need to be done
-report_struct = fnFixEventIDEReportData(report_struct, fixup_struct);
-
+% only fix if there is soething to fix...
+if ~isempty(report_struct)
+	% any specific fix-ups and corrections that need to be done
+	report_struct = fnFixEventIDEReportData(report_struct, fixup_struct);
+end
 
 
 report_struct.info.processing_time_ms = toc(timestamps.(mfilename).start);
