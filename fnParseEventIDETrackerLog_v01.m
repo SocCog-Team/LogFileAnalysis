@@ -1228,7 +1228,7 @@ if (debug)
 	
 	
 	[TrackerLog_path, TrackerLog_name] = fileparts(TrackerLog_FQN);
-	write_out_figure(timestamp_correction_fh, fullfile(TrackerLog_path, [TrackerLog_name, 'Delta_corrected_ubcorrected_EventIDE_TimeStamps.pdf']));
+	write_out_figure(timestamp_correction_fh, fullfile(TrackerLog_path, [TrackerLog_name, 'Delta_corrected_uncorrected_EventIDE_TimeStamps.pdf']));
 	% for automated processing, rather save a plot than keep a figure
 	% open...
 	close(timestamp_correction_fh);
