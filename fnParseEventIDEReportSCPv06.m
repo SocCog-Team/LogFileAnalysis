@@ -504,8 +504,8 @@ report_struct.ErrorReport = ErrorReport_struct;
 % add the additional information structure
 report_struct.info = info;
 
-% only fix if there is soething to fix...
-if ~isempty(report_struct) || ~isempty(report_struct.data)
+% only fix if there is something to fix...
+if ~isempty(report_struct) && ~isempty(report_struct.data)
 	% any specific fix-ups and corrections that need to be done
 	report_struct = fnFixEventIDEReportData(report_struct, fixup_struct);
 end
