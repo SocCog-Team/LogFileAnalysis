@@ -645,8 +645,8 @@ if (add_corrected_tracker_timestamps)
 		case {'pupillabs', 'eyelink'}
 			% for the eyetrackers with reasonably reliable timestamps we
 			% only need eventIDe and tracker times for corrections
-			[col_header, col_data] = fn_extract_corrected_eventIDE_timestamps(info.tracker_name, data_struct.data(:, data_struct.cn.EventIDE_TimeStamp, TrackerLog_FQN), ...
-				data_struct.data(:, tracker_timestamp_column));
+			[col_header, col_data] = fn_extract_corrected_eventIDE_timestamps(info.tracker_name, data_struct.data(:, data_struct.cn.EventIDE_TimeStamp), ...
+				data_struct.data(:, tracker_timestamp_column), TrackerLog_FQN);
 		case 'pqlab'
 			% here it gets complicated we need to look at some data columns
 			% as well as timing columns
@@ -659,8 +659,8 @@ if (add_corrected_tracker_timestamps)
 			% first and last timestamps and just interpoate the values
 			% inbetween
 			tracker_timestamp_column = data_struct.cn.EventIDE_TimeStamp;
-			[col_header, col_data] = fn_extract_corrected_eventIDE_timestamps(info.tracker_name, data_struct.data(:, data_struct.cn.EventIDE_TimeStamp, TrackerLog_FQN), ...
-				data_struct.data(:, tracker_timestamp_column));
+			[col_header, col_data] = fn_extract_corrected_eventIDE_timestamps(info.tracker_name, data_struct.data(:, data_struct.cn.EventIDE_TimeStamp), ...
+				data_struct.data(:, tracker_timestamp_column), TrackerLog_FQN);
 			
 		otherwise
 			error(['Encountered unhandled tracker type: ', tracker_name, ' please handle gracefully']);
