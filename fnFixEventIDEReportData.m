@@ -155,7 +155,7 @@ pd_onset_sample_idx = find(diff_pd_voltage >= positive_threshold_value_volts) + 
 %pd_offset_sample_idx = find(diff_pd_voltage <= -positive_threshold_value_volts) + 1;
 
 pd_offset_sample_idx = zeros(size(pd_onset_sample_idx));
-for i_pd_onset = 1 : length(pd_onset_sample_idx);
+for i_pd_onset = 1 : length(pd_onset_sample_idx)
 	cur_pd_onset_idx = pd_onset_sample_idx(i_pd_onset);
 	sample_offset = 1;
 	% 3.45 Volts seems to work
@@ -363,8 +363,10 @@ if isfield(output_struct, 'PhotoDiodeRenderer') && (size(output_struct.PhotoDiod
 				output_struct.PhotoDiodeRenderer.data(i_PD_transition, output_struct.PhotoDiodeRenderer.cn.RenderTimestamp_ms) = cur_corrected_time;
 			end
 		end
-		% save the time correction
-		RenderTimestamp_ms_photodiode_diff_list(i_PD_transition) = cur_corrected_time - cur_PD_transition_timestamp;
+		% save the time correction, if one was made
+		if ~isempty(tmp_idx)
+			RenderTimestamp_ms_photodiode_diff_list(i_PD_transition) = cur_corrected_time - cur_PD_transition_timestamp;
+		end
 	end
 	output_struct.FixUpReport{end+1} = 'Corrected the PhotoDiodeRenderer times from recorded PhotoDiode data';
 	
