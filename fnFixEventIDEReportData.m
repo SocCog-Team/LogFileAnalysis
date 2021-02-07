@@ -205,7 +205,7 @@ pd_offset_sample_timestamp_list = signallog.data(pd_offset_sample_idx, timestamp
 
 if isempty(pd_onset_sample_timestamp_list) && isempty(pd_offset_sample_timestamp_list)
 	disp(['fnFixVisualChangeTimesFromPhotodiodeSignallog: No photodiode onsets or offsets detected, bailing out...']);
-	output_struct.FixUpReport{end+1} = 'No PhotoDiode data found; could not correct the PhotoDiodeRenderer times from recorded PhotoDiode data';
+	output_struct.FixUpReport{end+1} = 'fnFixVisualChangeTimesFromPhotodiodeSignallog: No PhotoDiode data found; could not correct the PhotoDiodeRenderer times from recorded PhotoDiode data';
 	return
 end
 	
@@ -393,7 +393,7 @@ if isfield(output_struct, 'PhotoDiodeRenderer') && (size(output_struct.PhotoDiod
 			RenderTimestamp_ms_photodiode_diff_list(i_PD_transition) = cur_corrected_time - cur_PD_transition_timestamp;
 		end
 	end
-	output_struct.FixUpReport{end+1} = 'Corrected the PhotoDiodeRenderer times from recorded PhotoDiode data';
+	output_struct.FixUpReport{end+1} = 'fnFixVisualChangeTimesFromPhotodiodeSignallog: Corrected the PhotoDiodeRenderer times from recorded PhotoDiode data';
 	
 	
 	PD_overview_fh = figure('Name', 'PhotoDiodeBlockTimes minus EventIDE RenderTimes');
@@ -440,28 +440,32 @@ if isfield(output_struct, 'PhotoDiodeRenderer') && (size(output_struct.PhotoDiod
 			output_struct.Render.data(tmp_idx, output_struct.Render.cn.Timestamp) = cur_corrected_RenderTimestamp_ms;
 		end
 	end
-	output_struct.FixUpReport{end+1} = 'Corrected the Render times from recorded PhotoDiode data';
+	output_struct.FixUpReport{end+1} = 'fnFixVisualChangeTimesFromPhotodiodeSignallog: Corrected the Render times from recorded PhotoDiode data';
 	
 	
 	to_be_corrected_data_filed_list = {'Timestamp', 'RenderTimestamp_ms'};
 	for i_field = 1 : length(to_be_corrected_data_filed_list)
-		cur_fieldname = to_be_corrected_data_filed_list{i_field};
-		cur_uncorrected_fieldname = ['uncorrected_', cur_fieldname];
-		output_struct.RendererState.header{end + 1} = cur_uncorrected_fieldname;
-		output_struct.RendererState.cn = local_get_column_name_indices(output_struct.RendererState.header);
-		output_struct.RendererState.data(:, output_struct.RendererState.cn.(cur_uncorrected_fieldname)) = output_struct.RendererState.data(:, output_struct.RendererState.cn.(cur_fieldname));
-		
-		for i_PhotoDiodeRendererChange = 1 : size(output_struct.PhotoDiodeRenderer.data, 1)
-			cur_corrected_RenderTimestamp_ms = output_struct.PhotoDiodeRenderer.data(i_PhotoDiodeRendererChange, output_struct.PhotoDiodeRenderer.cn.RenderTimestamp_ms);
-			cur_uncorrected_RenderTimestamp_ms  = output_struct.PhotoDiodeRenderer.data(i_PhotoDiodeRendererChange, output_struct.PhotoDiodeRenderer.cn.uncorrected_RenderTimestamp_ms);
-			% find the occurance of uncorrected timestamp and replace with
-			% corrected value
-			tmp_idx = find(output_struct.RendererState.data(:, output_struct.RendererState.cn.(cur_uncorrected_fieldname)) == cur_uncorrected_RenderTimestamp_ms);
-			if ~isempty(tmp_idx)
-				output_struct.RendererState.data(tmp_idx, output_struct.RendererState.cn.(cur_fieldname)) = cur_corrected_RenderTimestamp_ms;
+		if isfield(output_struct, 'RendererState') && isfield(output_struct.RendererState, 'data')
+			cur_fieldname = to_be_corrected_data_filed_list{i_field};
+			cur_uncorrected_fieldname = ['uncorrected_', cur_fieldname];
+			if isfield(output_struct.RendererState.cn, cur_fieldname)
+				output_struct.RendererState.header{end + 1} = cur_uncorrected_fieldname;
+				output_struct.RendererState.cn = local_get_column_name_indices(output_struct.RendererState.header);
+				output_struct.RendererState.data(:, output_struct.RendererState.cn.(cur_uncorrected_fieldname)) = output_struct.RendererState.data(:, output_struct.RendererState.cn.(cur_fieldname));
+				
+				for i_PhotoDiodeRendererChange = 1 : size(output_struct.PhotoDiodeRenderer.data, 1)
+					cur_corrected_RenderTimestamp_ms = output_struct.PhotoDiodeRenderer.data(i_PhotoDiodeRendererChange, output_struct.PhotoDiodeRenderer.cn.RenderTimestamp_ms);
+					cur_uncorrected_RenderTimestamp_ms  = output_struct.PhotoDiodeRenderer.data(i_PhotoDiodeRendererChange, output_struct.PhotoDiodeRenderer.cn.uncorrected_RenderTimestamp_ms);
+					% find the occurance of uncorrected timestamp and replace with
+					% corrected value
+					tmp_idx = find(output_struct.RendererState.data(:, output_struct.RendererState.cn.(cur_uncorrected_fieldname)) == cur_uncorrected_RenderTimestamp_ms);
+					if ~isempty(tmp_idx)
+						output_struct.RendererState.data(tmp_idx, output_struct.RendererState.cn.(cur_fieldname)) = cur_corrected_RenderTimestamp_ms;
+					end
+				end
+				output_struct.FixUpReport{end+1} = ['fnFixVisualChangeTimesFromPhotodiodeSignallog: Corrected the RendererState times from recorded PhotoDiode data for ', cur_fieldname];
 			end
 		end
-		output_struct.FixUpReport{end+1} = ['Corrected the RendererState times from recorded PhotoDiode data for ', cur_fieldname];
 	end
 	
 	
@@ -490,7 +494,7 @@ if isfield(output_struct, 'PhotoDiodeRenderer') && (size(output_struct.PhotoDiod
 					output_struct.data(tmp_idx, output_struct.cn.(cur_fieldname)) = cur_corrected_RenderTimestamp_ms;
 				end
 			end
-			output_struct.FixUpReport{end+1} = ['Corrected the data times from recorded PhotoDiode data for: ', cur_fieldname];
+			output_struct.FixUpReport{end+1} = ['fnFixVisualChangeTimesFromPhotodiodeSignallog: Corrected the data times from recorded PhotoDiode data for: ', cur_fieldname];
 		end
 	end
 	
