@@ -88,8 +88,10 @@ if isfield(fixup_struct, 'add_trial_start_and_end_times') && (fixup_struct.add_t
 			end
 			output_struct = fn_handle_data_struct('add_columns', output_struct, [TrialStartTime_ms(matched_trial_idx), TrialEndTime_ms(matched_trial_idx)], {'TrialStartTime_ms', 'TrialEndTime_ms'});
 		end
-		output_struct.FixUpReport{end+1} = ['Added TrialStartTime_ms and TrialStartEnd_ms to the triallog data table, based on the ITI.'];
-	end	
+		output_struct.FixUpReport{end+1} = ['add_trial_start_and_end_times: Added TrialStartTime_ms and TrialStartEnd_ms to the triallog data table, based on the ITI.'];
+	else
+		output_struct.FixUpReport{end+1} = ['add_trial_start_and_end_times: NOT added TrialStartTime_ms and TrialStartEnd_ms to the triallog data table, based on the ITI. Triallog is missing relevant information.'];
+	end
 end
 
 % add estimated Reward start times unless they exist already
