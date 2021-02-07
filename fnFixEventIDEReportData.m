@@ -59,8 +59,14 @@ end
 % this definition is not useful for temporal alignment, but sufficient for
 % sanity checking
 if isfield(fixup_struct, 'add_trial_start_and_end_times') && (fixup_struct.add_trial_start_and_end_times)
-	if isfield(output_struct, 'ParadigmState')
-		ITI_ParadigmStateENUM_idx = input_struct.Enums.ParadigmStates.EnumStruct.data(input_struct.Enums.ParadigmStates.EnumStruct.cn.ITI)+1;
+	if isfield(output_struct, 'ParadigmState') && isfield(output_struct.ParadigmState, 'data')
+		
+		if isfield(input_struct.Enums, 'ParadigmStates')
+			ITI_ParadigmStateENUM_idx = input_struct.Enums.ParadigmStates.EnumStruct.data(input_struct.Enums.ParadigmStates.EnumStruct.cn.ITI)+1;
+		elseif (isfield(input_struct.Enums, 'DAGDirectFreeGazeReaches'))
+			ITI_ParadigmStateENUM_idx = input_struct.Enums.DAGDirectFreeGazeReaches.EnumStruct.data(input_struct.Enums.DAGDirectFreeGazeReaches.EnumStruct.cn.ITI)+1;
+		end
+		
 		ITI_para_instance_idx = find(output_struct.ParadigmState.data(:, output_struct.ParadigmState.cn.ParadigmStateENUM_idx) == ITI_ParadigmStateENUM_idx);
 		n_trials = size(output_struct.data, 1);
 		% these pairs should be correct
