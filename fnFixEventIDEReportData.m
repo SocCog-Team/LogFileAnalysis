@@ -63,15 +63,25 @@ if isfield(fixup_struct, 'add_trial_start_and_end_times') && (fixup_struct.add_t
 		ITI_ParadigmStateENUM_idx = input_struct.Enums.ParadigmStates.EnumStruct.data(input_struct.Enums.ParadigmStates.EnumStruct.cn.ITI)+1;
 		ITI_para_instance_idx = find(output_struct.ParadigmState.data(:, output_struct.ParadigmState.cn.ParadigmStateENUM_idx) == ITI_ParadigmStateENUM_idx);
 		n_trials = size(output_struct.data, 1);
+		% these pairs should be correct
+		TrialStartTime_ms = output_struct.ParadigmState.data(ITI_para_instance_idx(1:end-1), output_struct.ParadigmState.cn.Timestamp);
+		TrialEndTime_ms = output_struct.ParadigmState.data(ITI_para_instance_idx(2:end), output_struct.ParadigmState.cn.Timestamp);
 		if (length(ITI_para_instance_idx) == n_trials + 1)
-			TrialStartTime_ms = output_struct.ParadigmState.data(ITI_para_instance_idx(1:end-1), output_struct.ParadigmState.cn.Timestamp);
-			TrialStartEnd_ms = output_struct.ParadigmState.data(ITI_para_instance_idx(2:end), output_struct.ParadigmState.cn.Timestamp);
 			% add to the output struct
-			output_struct = fn_handle_data_struct('add_columns', output_struct, [TrialStartTime_ms, TrialStartEnd_ms], {'TrialStartTime_ms', 'TrialStartEnd_ms'});
+			output_struct = fn_handle_data_struct('add_columns', output_struct, [TrialStartTime_ms, TrialEndTime_ms], {'TrialStartTime_ms', 'TrialEndTime_ms'});
 		else
-			error('Does this actually happen?');
+			% we probably have more ITI instances than recorded trials
+			% we need to match these pairs around known trial times
+			matched_trial_idx = [];
+			for i_trial = 1 : n_trials
+				cur_trial_start_time = output_struct.data(i_trial, output_struct.cn.Timestamp);
+				proto_trial_idx = find(TrialEndTime_ms > cur_trial_start_time, 1, 'first');
+				if (TrialStartTime_ms(proto_trial_idx) <= cur_trial_start_time)
+					matched_trial_idx = union(matched_trial_idx, proto_trial_idx);
+				end
+			end
+			output_struct = fn_handle_data_struct('add_columns', output_struct, [TrialStartTime_ms(matched_trial_idx), TrialEndTime_ms(matched_trial_idx)], {'TrialStartTime_ms', 'TrialEndTime_ms'});
 		end
-
 		output_struct.FixUpReport{end+1} = ['Added TrialStartTime_ms and TrialStartEnd_ms to the triallog data table, based on the ITI.'];
 	end	
 end
