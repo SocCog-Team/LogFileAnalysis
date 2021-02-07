@@ -549,7 +549,7 @@ switch add_method
 			textscan_formatSpec = regexprep(tmp_fast.column_type_string, '%', ' %');
 			TrackerLogCell = textscan(TrackerLog_fd, textscan_formatSpec(2:end), 'Delimiter', column_separator, 'HeaderLines', length(info_header_line_list), 'ReturnOnError', 0, 'EndOfLine', '\r\n', 'MultipleDelimsAsOne', 0, 'EmptyValue', NaN);
 			tmpToc = toc(timestamps.(mfilename).start);
-			disp(['Trackerlog textscan took: ', num2str(tmpToc), ' seconds (', num2str(floor(tmpToc / 60), '%3.0f'),' minutes, ', num2str(tmpToc - (60 * floor(tmpToc / 60))),' seconds)']);
+			disp(['fnParseEventIDETrackerLog_v01: Trackerlog textscan took: ', num2str(tmpToc), ' seconds (', num2str(floor(tmpToc / 60), '%3.0f'),' minutes, ', num2str(tmpToc - (60 * floor(tmpToc / 60))),' seconds)']);
 			
 			%[cells_are_of_equal_length, numel_per_cell_list] = fn_get_numel_per_cell(TrackerLogCell);
 			n_cells = length(TrackerLogCell);
@@ -579,7 +579,7 @@ switch add_method
 			Reference_cell_Zero_or_NaN_idx = union(union(Reference_cell_Zero_idx, Reference_cell_NaN_idx), Reference_cell_time_in_past);
 			
 			if (length(Reference_cell_Zero_or_NaN_idx) * 2 == n_rows)
-				disp('Exactly half of the  EventIDE_TimeStamp cell''s elements contain NaN or Zero, likely rows doubled accidentally by textscan.');
+				disp('fnParseEventIDETrackerLog_v01: Exactly half of the  EventIDE_TimeStamp cell''s elements contain NaN or Zero, likely rows doubled accidentally by textscan.');
 				Reference_cell_Zero_or_NaN_idx_diff = diff(Reference_cell_Zero_or_NaN_idx);
 				if (max(Reference_cell_Zero_or_NaN_idx_diff(:)) == 2) && (min(Reference_cell_Zero_or_NaN_idx_diff(:)) == 2)
 					% every other row is dubious, now test against all
@@ -590,7 +590,7 @@ switch add_method
 							if ~isempty(setdiff(Reference_cell_Zero_or_NaN_idx, cur_nan_idx))
 								% if this happens our heuristic misfired or
 								% needs adjustments...
-								error(['Cell ', num2str(i_cell), ' contained less NaN values than the EventIDE_TimeStamp, that should not happen.']);
+								error(['fnParseEventIDETrackerLog_v01: Cell ', num2str(i_cell), ' contained less NaN values than the EventIDE_TimeStamp, that should not happen.']);
 							end
 						end
 					end
@@ -598,6 +598,7 @@ switch add_method
 					% get the good row idx
 					non_nan_row_idx = setdiff((1:1:n_rows), Reference_cell_Zero_or_NaN_idx);
 					for i_cell = 1 : n_cells
+						disp('fnParseEventIDETrackerLog_v01: Fixing the ' tmp_fast{i_cell}, ' column by removing apparently doubled but wrong rows.');
 						if isnumeric(TrackerLogCell{i_cell})
 							TrackerLogCell{i_cell} = TrackerLogCell{i_cell}(non_nan_row_idx);
 						end
@@ -620,7 +621,7 @@ switch add_method
 			if ~cells_are_of_equal_length
 				if ismember(log_type, {'signallog'})
 					% make sure all cells are of equal length
-					disp(['Forcing all textscan cells to minimum length of ', num2str(min(numel_per_cell_list(:))), ', (', num2str(n_cells), ' cells, max ', num2str(max(numel_per_cell_list(:))), ').']);
+					disp(['fnParseEventIDETrackerLog_v01: Forcing all textscan cells to minimum length of ', num2str(min(numel_per_cell_list(:))), ', (', num2str(n_cells), ' cells, max ', num2str(max(numel_per_cell_list(:))), ').']);
 
 					for i_cell = 1 : n_cells
 						if (numel_per_cell_list(i_cell) > min(numel_per_cell_list(:)))
@@ -632,7 +633,7 @@ switch add_method
 					% figure out how to deal with that properly later,
 					% could be used to make the fix-up step conditional on
 					% naive parsing failing?
-					error(['Individual columns are of different length, but the log type is not tolerant to this condition.']);
+					error(['fnParseEventIDETrackerLog_v01: Individual columns are of different length, but the log type is not tolerant to this condition.']);
 				end
 			end
 			% do not try to convert empty log files
