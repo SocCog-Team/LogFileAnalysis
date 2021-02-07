@@ -77,7 +77,7 @@ trackername_start_string = '.TID_';
 trackername_stop_string = '.trackerlog';
 
 
-fixup_userfield_columns = 2;
+fixup_userfield_columns = 2;	% trackerlogs need 2, signallog is fine with 0
 delete_fixed_trackerlog = 1;    %TODO instead clone a header into the fixed data file, zip the original under a new name and save the fixed as the "normal" tracker log file
 expand_GLM_coefficients = 1;
 suffix_string = '';
@@ -546,7 +546,8 @@ switch add_method
 		if (exist(TmpTrackerLog_FQN, 'file') == 2) || (fixup_userfield_columns == 0)
 			% if the following fails chech whether the type assignments in
 			% tmp_fast.column_type_list are correct
-			TrackerLogCell = textscan(TrackerLog_fd, tmp_fast.column_type_string, 'Delimiter', column_separator, 'HeaderLines', length(info_header_line_list), 'ReturnOnError', 0);
+			textscan_formatSpec = regexprep(tmp_fast.column_type_string, '%', ' %');
+			TrackerLogCell = textscan(TrackerLog_fd, textscan_formatSpec(2:end), 'Delimiter', column_separator, 'HeaderLines', length(info_header_line_list), 'ReturnOnError', 0, 'EndOfLine', '\r\n', 'MultipleDelimsAsOne', 0, 'EmptyValue', NaN);
 			tmpToc = toc(timestamps.(mfilename).start);
 			disp(['Trackerlog textscan took: ', num2str(tmpToc), ' seconds (', num2str(floor(tmpToc / 60), '%3.0f'),' minutes, ', num2str(tmpToc - (60 * floor(tmpToc / 60))),' seconds)']);
 			
@@ -554,6 +555,56 @@ switch add_method
 			n_cells = length(TrackerLogCell);
 			cells_are_of_equal_length = 0;
 			numel_per_cell_list = zeros(size(TrackerLogCell));
+			n_rows = size(TrackerLogCell{1}, 1);
+			
+			% this is sad, but at least on 2019b maci64 textscan
+			% occasionally adds either a NaN or an 0×0 char array after
+			% every line find these and delecte them
+			
+			n_nans_per_cell = zeros(size(TrackerLogCell));
+			for i_cell = 1 : n_cells
+				if isnumeric(TrackerLogCell{i_cell})
+					n_nans_per_cell(i_cell) = sum(isnan(TrackerLogCell{i_cell}));
+				elseif iscell(TrackerLogCell{i_cell})
+					%n_nans_per_cell(i_cell) = length(find(~cellfun('isempty', TrackerLogCell{i_cell})));
+				end
+			end			
+			
+			EventIDE_TimeStamp_cell_idx = find(ismember(tmp_fast.header, 'EventIDE_TimeStamp'));
+			EventIDE_TimeStamp_cell_Zero_idx = find(TrackerLogCell{EventIDE_TimeStamp_cell_idx} == 0);
+			EventIDE_TimeStamp_cell_NaN_idx = find(isnan(TrackerLogCell{EventIDE_TimeStamp_cell_idx}));
+			EventIDE_TimeStamp_cell_Zero_or_NaN_idx = union(EventIDE_TimeStamp_cell_Zero_idx, EventIDE_TimeStamp_cell_NaN_idx);
+			
+			if (length(EventIDE_TimeStamp_cell_Zero_or_NaN_idx) * 2 == n_rows)
+				disp('Exactly half of the  EventIDE_TimeStamp cell''s elements contain NaN or Zero, likely rows doubled accidentally by textscan.');
+				EventIDE_TimeStamp_cell_Zero_or_NaN_idx_diff = diff(EventIDE_TimeStamp_cell_Zero_or_NaN_idx);
+				if (max(EventIDE_TimeStamp_cell_Zero_or_NaN_idx_diff(:)) == 2) && (min(EventIDE_TimeStamp_cell_Zero_or_NaN_idx_diff(:)) == 2)
+					% every other row is dubious, now test against all
+					% other numeric cells
+					for i_cell = 1 : n_cells
+						if isnumeric(TrackerLogCell{i_cell}) && (i_cell ~= EventIDE_TimeStamp_cell_idx)
+							cur_nan_idx = find(isnan(TrackerLogCell{i_cell}));
+							if ~isempty(setdiff(EventIDE_TimeStamp_cell_Zero_or_NaN_idx, cur_nan_idx))
+								% if this happens our heuristic misfired or
+								% needs adjustments...
+								error(['Cell ', num2str(i_cell), ' contained less NaN values than the EventIDE_TimeStamp, that should not happen.']);
+							end
+						end
+					end
+					
+					% get the good row idx
+					non_nan_row_idx = setdiff((1:1:n_rows), EventIDE_TimeStamp_cell_Zero_or_NaN_idx);
+					for i_cell = 1 : n_cells
+						if isnumeric(TrackerLogCell{i_cell})
+							TrackerLogCell{i_cell} = TrackerLogCell{i_cell}(non_nan_row_idx);
+						end
+						if iscell(TrackerLogCell{i_cell})
+							TrackerLogCell{i_cell} = TrackerLogCell{i_cell}(non_nan_row_idx);
+						end	
+					end
+				end	
+			end	
+			
 			
 			for i_cell = 1 : n_cells
 				numel_per_cell_list(i_cell) = length(TrackerLogCell{i_cell});
@@ -1231,6 +1282,8 @@ if (debug)
 	write_out_figure(timestamp_correction_fh, fullfile(TrackerLog_path, [TrackerLog_name, 'Delta_corrected_uncorrected_EventIDE_TimeStamps.pdf']));
 	% for automated processing, rather save a plot than keep a figure
 	% open...
+	drawnow;
+
 	close(timestamp_correction_fh);
 end
 
