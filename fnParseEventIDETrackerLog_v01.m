@@ -598,7 +598,7 @@ switch add_method
 					% get the good row idx
 					non_nan_row_idx = setdiff((1:1:n_rows), Reference_cell_Zero_or_NaN_idx);
 					for i_cell = 1 : n_cells
-						disp('fnParseEventIDETrackerLog_v01: Fixing the ' tmp_fast{i_cell}, ' column by removing apparently doubled but wrong rows.');
+						disp(['fnParseEventIDETrackerLog_v01: Fixing the ' tmp_fast.header{i_cell}, ' column by removing apparently doubled but wrong rows.']);
 						if isnumeric(TrackerLogCell{i_cell})
 							TrackerLogCell{i_cell} = TrackerLogCell{i_cell}(non_nan_row_idx);
 						end
