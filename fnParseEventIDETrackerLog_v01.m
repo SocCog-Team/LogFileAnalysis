@@ -570,21 +570,24 @@ switch add_method
 				end
 			end			
 			
-			EventIDE_TimeStamp_cell_idx = find(ismember(tmp_fast.header, 'EventIDE_TimeStamp'));
-			EventIDE_TimeStamp_cell_Zero_idx = find(TrackerLogCell{EventIDE_TimeStamp_cell_idx} == 0);
-			EventIDE_TimeStamp_cell_NaN_idx = find(isnan(TrackerLogCell{EventIDE_TimeStamp_cell_idx}));
-			EventIDE_TimeStamp_cell_Zero_or_NaN_idx = union(EventIDE_TimeStamp_cell_Zero_idx, EventIDE_TimeStamp_cell_NaN_idx);
+			Reference_cell_idx = find(ismember(tmp_fast.header, 'EventIDE_TimeStamp'));
+			Reference_cell_Zero_idx = find(TrackerLogCell{Reference_cell_idx} == 0);
+			Reference_cell_NaN_idx = find(isnan(TrackerLogCell{Reference_cell_idx}));
+			% for the first time column the odd values sometimes increment
+			% slowly
+			Reference_cell_time_in_past = find(TrackerLogCell{Reference_cell_idx} < TrackerLogCell{Reference_cell_idx}(1));
+			Reference_cell_Zero_or_NaN_idx = union(union(Reference_cell_Zero_idx, Reference_cell_NaN_idx), Reference_cell_time_in_past);
 			
-			if (length(EventIDE_TimeStamp_cell_Zero_or_NaN_idx) * 2 == n_rows)
+			if (length(Reference_cell_Zero_or_NaN_idx) * 2 == n_rows)
 				disp('Exactly half of the  EventIDE_TimeStamp cell''s elements contain NaN or Zero, likely rows doubled accidentally by textscan.');
-				EventIDE_TimeStamp_cell_Zero_or_NaN_idx_diff = diff(EventIDE_TimeStamp_cell_Zero_or_NaN_idx);
-				if (max(EventIDE_TimeStamp_cell_Zero_or_NaN_idx_diff(:)) == 2) && (min(EventIDE_TimeStamp_cell_Zero_or_NaN_idx_diff(:)) == 2)
+				Reference_cell_Zero_or_NaN_idx_diff = diff(Reference_cell_Zero_or_NaN_idx);
+				if (max(Reference_cell_Zero_or_NaN_idx_diff(:)) == 2) && (min(Reference_cell_Zero_or_NaN_idx_diff(:)) == 2)
 					% every other row is dubious, now test against all
 					% other numeric cells
 					for i_cell = 1 : n_cells
-						if isnumeric(TrackerLogCell{i_cell}) && (i_cell ~= EventIDE_TimeStamp_cell_idx)
+						if isnumeric(TrackerLogCell{i_cell}) && (i_cell ~= Reference_cell_idx)
 							cur_nan_idx = find(isnan(TrackerLogCell{i_cell}));
-							if ~isempty(setdiff(EventIDE_TimeStamp_cell_Zero_or_NaN_idx, cur_nan_idx))
+							if ~isempty(setdiff(Reference_cell_Zero_or_NaN_idx, cur_nan_idx))
 								% if this happens our heuristic misfired or
 								% needs adjustments...
 								error(['Cell ', num2str(i_cell), ' contained less NaN values than the EventIDE_TimeStamp, that should not happen.']);
@@ -593,7 +596,7 @@ switch add_method
 					end
 					
 					% get the good row idx
-					non_nan_row_idx = setdiff((1:1:n_rows), EventIDE_TimeStamp_cell_Zero_or_NaN_idx);
+					non_nan_row_idx = setdiff((1:1:n_rows), Reference_cell_Zero_or_NaN_idx);
 					for i_cell = 1 : n_cells
 						if isnumeric(TrackerLogCell{i_cell})
 							TrackerLogCell{i_cell} = TrackerLogCell{i_cell}(non_nan_row_idx);
