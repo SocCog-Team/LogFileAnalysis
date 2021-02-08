@@ -101,6 +101,15 @@ end
 
 function [ output_struct ] = fnFixVisualChangeTimesFromPhotodiodeSignallog( output_struct, signallog_base_FQN )
 
+
+% check for sufficient information, for the new complete PhotoDiodeRenderer
+% information.
+if ~isfield(output_struct, 'PhotoDiodeRenderer') || ~isfield(output_struct.PhotoDiodeRenderer, 'cn')
+	disp(['fnFixVisualChangeTimesFromPhotodiodeSignallog: PhotoDiodeRenderer does not exist or is empty, no timing correction possible.']);
+	output_struct.FixUpReport{end+1} = 'fnFixVisualChangeTimesFromPhotodiodeSignallog: PhotoDiodeRenderer does not exist or is empty, no timing correction possible.';
+	return
+end	
+
 debug = 0;
 
 [signallog_base_dir, signallog_base_name]  = fileparts(signallog_base_FQN);
