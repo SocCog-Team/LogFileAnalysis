@@ -907,8 +907,12 @@ if strcmp(RecordType, 'data')
 	OutDataCells = {};
 	
 	if length(DataCells) ~= length(local_data_struct.raw.types)
-		
-		error(['The ', RecordTypeHint, '-type data record does not match the length of the respective types list, investigate \n ', current_line]);
+		if strcmp(current_line, 'DIGITALOUTOCTETMESSAGE; System.Collections.Generic.List`1[System.Byte]')
+			disp(['Encountered old, broken DIGITALOUTOCTETMESSAGE record which lacks most fields, but these were not used during reordings and hence can be ignored.']);
+			return
+		else
+			error(['The ', RecordTypeHint, '-type data record does not match the length of the respective types list, investigate \n ', current_line]);
+		end
 	end
 	
 	
