@@ -1435,8 +1435,18 @@ ByTrial_struct.data(:,2) = TrialNumberList;
 % with starttimes after the change timestamp only
 
 TrialOffset = length(TimestampList);
-for iSessionRecord = size(TimestampedChanges_struct.data, 1) : -1 : 1;
+
+for iSessionRecord = size(TimestampedChanges_struct.data, 1) : -1 : 1
     CurrentSessionRecordTS = TimestampedChanges_struct.data(iSessionRecord, TimestampedChanges_struct.cn.Timestamp);
+	LastTrialTS = TimestampList(TrialOffset);
+	
+	% find the earliest CurrentSessionRecordTS still >= LastTrialTS and use
+	% that to assign values
+	while (TimestampedChanges_struct.data(iSessionRecord, TimestampedChanges_struct.cn.Timestamp) >= LastTrialTS)
+		iSessionRecord = iSessionRecord -1;
+		CurrentSessionRecordTS = TimestampedChanges_struct.data(iSessionRecord, TimestampedChanges_struct.cn.Timestamp);
+	end
+	
     % loop over all not yet processed trials
     for iTrial = TrialOffset : -1 : 1
         CurrentTrialTS = TimestampList(iTrial);
@@ -1448,10 +1458,15 @@ for iSessionRecord = size(TimestampedChanges_struct.data, 1) : -1 : 1;
             % found a related trial so fill in the data
             ByTrial_struct.data(iTrial,3:end) = TimestampedChanges_struct.data(iSessionRecord, :);
         else
-            TrialOffset = iTrial - 1;
+            TrialOffset = iTrial;
             break
         end
-    end 
+	end
+	if (iTrial == 1)
+		% reached the end of the for loop, so all trials are assigned
+		% break out of the iSessionRecord loop
+		break
+	end
 end
 
 ByTrial_struct.cn = local_get_column_name_indices(ByTrial_struct.header);
