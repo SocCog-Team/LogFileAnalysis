@@ -38,7 +38,7 @@ mfilepath = fileparts(fq_mfilename);
 calling_dir = pwd;
 
 save_matfile = 1;
-version_string = '.v016';	% we append this to the filename to figure out whether a report file should be re-parsed... this needs to be updated whenthe parser changes
+version_string = '.v017';	% we append this to the filename to figure out whether a report file should be re-parsed... this needs to be updated whenthe parser changes
 
 suffix_string = '';
 test_timing = 0;
