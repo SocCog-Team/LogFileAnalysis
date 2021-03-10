@@ -212,6 +212,20 @@ end
 pd_onset_sample_timestamp_list = signallog.data(pd_onset_sample_idx, timestamp_col);
 pd_offset_sample_timestamp_list = signallog.data(pd_offset_sample_idx, timestamp_col);
 
+
+pd_puls_dur_list = pd_offset_sample_timestamp_list - pd_onset_sample_timestamp_list;
+diff_pd_onset_sample_timestamp_list = diff(pd_onset_sample_timestamp_list);
+diff_pd_offset_sample_timestamp_list = diff(pd_offset_sample_timestamp_list);
+
+same_onset_sample_timestamp_list = find(abs(diff_pd_onset_sample_timestamp_list) <= 0.0 + (2 * eps));
+same_offset_sample_timestamp_list = find(abs(diff_pd_offset_sample_timestamp_list) <= 0.0 + (2 * eps));
+
+if ~isempty(same_onset_sample_timestamp_list) || ~isempty(same_offset_sample_timestamp_list)
+	disp('Photodiode pulse detection seems to have cought the same onset of offset twice. This should not be, so investigate!');
+	keyboard
+end
+
+
 if isempty(pd_onset_sample_timestamp_list) && isempty(pd_offset_sample_timestamp_list)
 	disp(['fnFixVisualChangeTimesFromPhotodiodeSignallog: No photodiode onsets or offsets detected, bailing out...']);
 	output_struct.FixUpReport{end+1} = 'fnFixVisualChangeTimesFromPhotodiodeSignallog: No PhotoDiode data found; could not correct the PhotoDiodeRenderer times from recorded PhotoDiode data';
