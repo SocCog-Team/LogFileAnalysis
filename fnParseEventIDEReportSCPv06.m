@@ -182,6 +182,9 @@ Stimulus_struct = struct();
 Video_struct = struct();
 ErrorReport_struct = struct();
 
+spurious_linebreak_count = 0;
+
+
 %loop over all lines in the ReportLog
 while (~feof(ReportLog_fd))
 	current_line = fgetl(ReportLog_fd);
@@ -232,9 +235,30 @@ while (~feof(ReportLog_fd))
 			FoundUserData = 1;
 			continue
 	end
+		
+	% EventIDE 20210222 introduced new behavior, introducing spurious line
+	% breaks inside of data records the sign being a line ending without
+	% the item separator followed by a line starting with the separator
+	trimmed_current_line = strtrim(current_line);
+	if ~strcmp(trimmed_current_line(end), ItemSeparator) && (FoundUserData)
+		cur_filepos = ftell(ReportLog_fd);
+		next_line = strtrim(fgetl(ReportLog_fd));
+		if ~isempty(next_line) && strcmp(next_line(1), ItemSeparator) && strcmp(next_line(end), ItemSeparator)
+			spurious_linebreak_count = spurious_linebreak_count + 1;
+			if (spurious_linebreak_count == 1)
+				disp('Triallog file contains spurious line breaks inside data record lines, re-merging line fragments tino complete records.');
+			end
+			current_line = [current_line, next_line];
+		else
+			% rewind to where we were before
+			%disp('This can happen, seems a legit record, but not a split one.');
+			fseek(ReportLog_fd, cur_filepos, 'bof');
+		end
+	end
 	
 	% now look for known types
 	[CurrentToken, remain] = strtok(current_line, ItemSeparator);
+	
 	
 	switch (strtrim(CurrentToken))
 		case {'TOTALS', 'TOTALSHEADER', 'TOTALSTYPES'}
