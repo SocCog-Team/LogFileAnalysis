@@ -240,15 +240,27 @@ while (~feof(ReportLog_fd))
 	% breaks inside of data records the sign being a line ending without
 	% the item separator followed by a line starting with the separator
 	trimmed_current_line = strtrim(current_line);
+	cur_record_has_spurious_linebreak = 0;
 	if ~strcmp(trimmed_current_line(end), ItemSeparator) && (FoundUserData)
 		cur_filepos = ftell(ReportLog_fd);
 		next_line = strtrim(fgetl(ReportLog_fd));
 		if ~isempty(next_line) && strcmp(next_line(1), ItemSeparator) && strcmp(next_line(end), ItemSeparator)
 			spurious_linebreak_count = spurious_linebreak_count + 1;
+			cur_record_has_spurious_linebreak = 1;
 			if (spurious_linebreak_count == 1)
 				disp('Triallog file contains spurious line breaks inside data record lines, re-merging line fragments tino complete records.');
 			end
 			current_line = [current_line, next_line];
+			if strcmp(trimmed_current_line(1:5), 'TRIAL')
+				% here the failure mode was splitting the TRIAL record into
+				% three pieces
+				next_next_line = strtrim(fgetl(ReportLog_fd));
+				if ~isempty(next_next_line)
+					% here a test for all known keywords might be helpful, but
+					% just wing it for now.
+					current_line = [current_line, next_next_line];
+				end
+			end
 		else
 			% rewind to where we were before
 			%disp('This can happen, seems a legit record, but not a split one.');
