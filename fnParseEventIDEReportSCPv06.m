@@ -1485,7 +1485,7 @@ for iSessionRecord = size(TimestampedChanges_struct.data, 1) : -1 : 1
 		else
 			% we can't go earlier than the first SessionRecord though...
 			iSessionRecord = 1;
-			continue
+			break
 		end
 	end
 	
