@@ -248,7 +248,7 @@ while (~feof(ReportLog_fd))
 			spurious_linebreak_count = spurious_linebreak_count + 1;
 			cur_record_has_spurious_linebreak = 1;
 			if (spurious_linebreak_count == 1)
-				disp('Triallog file contains spurious line breaks inside data record lines, re-merging line fragments tino complete records.');
+				disp('Triallog file contains spurious line breaks inside data record lines, re-merging line fragments to complete split records.');
 			end
 			current_line = [current_line, next_line];
 			if strcmp(trimmed_current_line(1:5), 'TRIAL')
@@ -1480,7 +1480,13 @@ for iSessionRecord = size(TimestampedChanges_struct.data, 1) : -1 : 1
 	% that to assign values
 	while (TimestampedChanges_struct.data(iSessionRecord, TimestampedChanges_struct.cn.Timestamp) >= LastTrialTS)
 		iSessionRecord = iSessionRecord -1;
-		CurrentSessionRecordTS = TimestampedChanges_struct.data(iSessionRecord, TimestampedChanges_struct.cn.Timestamp);
+		if (iSessionRecord > 0)
+			CurrentSessionRecordTS = TimestampedChanges_struct.data(iSessionRecord, TimestampedChanges_struct.cn.Timestamp);
+		else
+			% we can't go earlier than the first SessionRecord though...
+			iSessionRecord = 1;
+			continue
+		end
 	end
 	
     % loop over all not yet processed trials
