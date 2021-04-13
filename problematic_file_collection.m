@@ -131,12 +131,18 @@ session_dir = fullfile('/Volumes/taskcontroller$/SCP_DATA/SCP-CTRL-01/SESSIONLOG
 triallog_struct = fnAnalyseIndividualSCPSession( fullfile(session_dir, '20210412T135618.A_Elmo.B_None.SCP_01.triallog'), fullfile(session_dir, 'ANALYSIS'), 'SfN2008');
 fnLoadDataBySessionDir(fullfile('/Volumes/taskcontroller$/SCP_DATA/SCP-CTRL-01/SESSIONLOGS/2021/210412','20210412T135618.A_Elmo.B_None.SCP_01.sessiondir'));
 
-% no TrialType record, failed in fnCollectTrialSets.m
+% BAD: no TrialType record, failed in fnCollectTrialSets.m
 session_dir = fullfile('/Volumes/taskcontroller$/SCP_DATA/SCP-CTRL-01/SESSIONLOGS/2017/170314/20170314T120641.A_Sebastian.B_Iryna.SCP_01.sessiondir'); 
 triallog_struct = fnAnalyseIndividualSCPSession( fullfile(session_dir, '20170314T120641.A_Sebastian.B_Iryna.SCP_01.triallog'), fullfile(session_dir, 'ANALYSIS'), 'SfN2008');
-% TrialTYpe record exists, no issues
+% GOOD: TrialTYpe record exists, no issues
 session_dir = fullfile('/Volumes/taskcontroller$/SCP_DATA/SCP-CTRL-01/SESSIONLOGS/2017/170315/20170315T160814.A_None.B_StefanTreue.SCP_01.sessiondir'); 
 triallog_struct = fnAnalyseIndividualSCPSession( fullfile(session_dir, '20170315T160814.A_None.B_StefanTreue.SCP_01.triallog'), fullfile(session_dir, 'ANALYSIS'), 'SfN2008');
+
+
+session_dir = fullfile('/Volumes/taskcontroller$/SCP_DATA/SCP-CTRL-01/SESSIONLOGS/2017/170314/20170314T115957.A_Sebastian.B_Iryna.SCP_01.sessiondir'); 
+triallog_struct = fnAnalyseIndividualSCPSession( fullfile(session_dir, '20170314T115957.A_Sebastian.B_Iryna.SCP_01.triallog'), fullfile(session_dir, 'ANALYSIS'), 'SfN2008');
+
+
 
 end
 

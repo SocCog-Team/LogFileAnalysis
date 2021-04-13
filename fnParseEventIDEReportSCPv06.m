@@ -492,7 +492,7 @@ if ~isempty(fieldnames(Enums_struct))
 end
 
 
-if ~isempty(fieldnames(Session_struct))
+if ~isempty(fieldnames(Session_struct)) && isfield(report_struct, 'data') && ~isempty(report_struct.data) && (report_struct.first_empty_row_idx > 1)
 	% Sessions_struct contains data that rarely changes in an experiment
     % use the timestamp to map to trial numbers from the data table
 	SessionByTrial_struct = fnConvertTimestampedChangeDataToByTrialData(Session_struct, 'Session', data_struct.data(:, data_struct.cn.Timestamp), data_struct.data(:, data_struct.cn.TrialNumber));
@@ -541,7 +541,7 @@ report_struct.ErrorReport = ErrorReport_struct;
 report_struct.info = info;
 
 % only fix if there is something to fix...
-if ~isempty(report_struct) && ~isempty(report_struct.data) && (report_struct.first_empty_row_idx > 1)
+if ~isempty(report_struct) && isfield(report_struct, 'data') && ~isempty(report_struct.data) && (report_struct.first_empty_row_idx > 1)
 	% any specific fix-ups and corrections that need to be done
 	report_struct = fnFixEventIDEReportData(report_struct, fixup_struct);
 end
