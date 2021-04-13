@@ -541,7 +541,7 @@ report_struct.ErrorReport = ErrorReport_struct;
 report_struct.info = info;
 
 % only fix if there is something to fix...
-if ~isempty(report_struct) && ~isempty(report_struct.data)
+if ~isempty(report_struct) && ~isempty(report_struct.data) && (report_struct.first_empty_row_idx > 1)
 	% any specific fix-ups and corrections that need to be done
 	report_struct = fnFixEventIDEReportData(report_struct, fixup_struct);
 end
