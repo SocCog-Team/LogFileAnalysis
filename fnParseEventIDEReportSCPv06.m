@@ -492,7 +492,7 @@ if ~isempty(fieldnames(Enums_struct))
 end
 
 
-if ~isempty(fieldnames(Session_struct)) && isfield(report_struct, 'data') && ~isempty(report_struct.data) && (report_struct.first_empty_row_idx > 1)
+if ~isempty(fieldnames(Session_struct)) && isfield(data_struct, 'data') && ~isempty(data_struct.data) && (data_struct.first_empty_row_idx > 1)
 	% Sessions_struct contains data that rarely changes in an experiment
     % use the timestamp to map to trial numbers from the data table
 	SessionByTrial_struct = fnConvertTimestampedChangeDataToByTrialData(Session_struct, 'Session', data_struct.data(:, data_struct.cn.Timestamp), data_struct.data(:, data_struct.cn.TrialNumber));
