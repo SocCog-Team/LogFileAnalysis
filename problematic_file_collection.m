@@ -143,6 +143,20 @@ session_dir = fullfile('/Volumes/taskcontroller$/SCP_DATA/SCP-CTRL-01/SESSIONLOG
 triallog_struct = fnAnalyseIndividualSCPSession( fullfile(session_dir, '20170314T115957.A_Sebastian.B_Iryna.SCP_01.triallog'), fullfile(session_dir, 'ANALYSIS'), 'SfN2008');
 
 
+session_dir = fullfile('/Volumes/taskcontroller$/SCP_DATA/SCP-CTRL-01/SESSIONLOGS/2017/170314/20170314T114202.A_Sebastian.B_Iryna.SCP_01.sessiondir'); 
+triallog_struct = fnAnalyseIndividualSCPSession( fullfile(session_dir, '20170314T114202.A_Sebastian.B_Iryna.SCP_01.triallog'), fullfile(session_dir, 'ANALYSIS'), 'SfN2008');
+
+session_dir = fullfile('/Volumes/taskcontroller$/SCP_DATA/SCP-CTRL-01/SESSIONLOGS/2017/170314/20170314T113418.A_Sebastian.B_Iryna.SCP_01.sessiondir'); 
+triallog_struct = fnAnalyseIndividualSCPSession( fullfile(session_dir, '20170314T113418.A_Sebastian.B_Iryna.SCP_01.triallog'), fullfile(session_dir, 'ANALYSIS'), 'SfN2008');
+
+
+session_dir = fullfile('/Volumes/taskcontroller$/SCP_DATA/SCP-CTRL-01/SESSIONLOGS/2017/170312/20170312T090626.A_Curius.B_None.SCP_01.sessiondir'); 
+triallog_struct = fnAnalyseIndividualSCPSession( fullfile(session_dir, '20170312T090626.A_Curius.B_None.SCP_01.triallog'), fullfile(session_dir, 'ANALYSIS'), 'SfN2008');
+
+
+session_dir = fullfile('/Volumes/taskcontroller$/SCP_DATA/SCP-CTRL-01/SESSIONLOGS/2017/170209/20170209T165804.A_Curius.B_MixedHPs.SCP_01.sessiondir'); 
+triallog_struct = fnAnalyseIndividualSCPSession( fullfile(session_dir, '20170209T165804.A_Curius.B_MixedHPs.SCP_01.triallog'), fullfile(session_dir, 'ANALYSIS'), 'SfN2008');
+
 
 end
 

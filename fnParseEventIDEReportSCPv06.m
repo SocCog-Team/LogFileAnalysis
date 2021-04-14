@@ -268,6 +268,19 @@ while (~feof(ReportLog_fd))
 		end
 	end
 	
+	
+	% early triallog files (up to 20170209) accidentally used colons instead of semi-colons
+	% as separators in the beginning of the TRIALHEADER record, so "TRIALHEADER: Timestamp: TrialNumber;"
+	% instead of "TRIALHEADER; Timestamp; TrialNumber;"
+	fix_old_TRIALHEADER_separator = 1;
+	if (fix_old_TRIALHEADER_separator)
+		if (length(current_line) >= 36) && strcmp(current_line(1:36), 'TRIALHEADER: Timestamp: TrialNumber;')
+			disp(['Fixing TRIALHEADER record, by converting : to ; as separators']);
+			current_line = regexprep(current_line, 'TRIALHEADER: Timestamp: TrialNumber;', 'TRIALHEADER; Timestamp; TrialNumber;');
+			fix_old_TRIALHEADER_separator = 0;	% only required once
+		end
+	end
+	
 	% now look for known types
 	[CurrentToken, remain] = strtok(current_line, ItemSeparator);
 	
