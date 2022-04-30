@@ -284,7 +284,7 @@ function [ session_dir, session_info, SETUP_sub_dir, cur_session_id ] = fn_get_s
 
 %test if cur_session_id is a full directory, treat as session_dir in that
 %case
-if isdir(cur_session_id)
+if isfolder(cur_session_id)
 	session_dir = cur_session_id;
 	[~, cur_session_id, session_dir_extension] = fileparts(session_dir);
 	
