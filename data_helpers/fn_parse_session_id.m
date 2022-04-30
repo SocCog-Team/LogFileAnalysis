@@ -14,6 +14,8 @@ session_info.hour_string = tmp_T_time(2:3);	% offset by the leading T
 session_info.minute_string = tmp_T_time(4:5);
 session_info.second_string = tmp_T_time(6:7);
 session_info.YYMMDD_string = [session_info.year_string(3:4), session_info.month_string, session_info.day_string];
+session_info.YYYYMMDD_string = [session_info.year_string(1:4), session_info.month_string, session_info.day_string];
+
 
 % get the marker for a merged session (needs to be concise)
 if strcmp('M', session_date_time_string(end))
