@@ -101,6 +101,9 @@ if (numel(session_id_list) == 1)
 		% found a merge list, now read it in
 		session_merge_table = readtable(proto_session_merge_list_fqn, 'FileType', 'text', 'ReadVariableNames', 0, 'Delimiter', ';'); % one session identifier per row
 		session_merge_list = table2cell(session_merge_table);
+		disp(['Found session merge list in : ', merge_session_id, ' with the following content:']);
+		disp(['Merge list FQN: ', proto_session_merge_list_fqn]);		
+		disp(session_merge_list);
 	end
 end	
 	

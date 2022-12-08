@@ -1,4 +1,4 @@
-function [ report_struct, version_string ] = fnParseEventIDEReportSCPv06( ReportLog_FQN, ItemSeparator, ArraySeparator )
+function [ report_struct, version_string ] = fnParseEventIDEReportSCPv06( ReportLog_FQN, ItemSeparator, ArraySeparator, override_directive )
 %fnParseEventIDEReportSCP parse the EventIDE report files generates as part
 %of the social cognition plattform at the DPZ
 %   Try to read in eventIDE report files for DPZ SCP experiments
@@ -100,6 +100,14 @@ else
 			% matfile does not exist, so try to parse the .txt version instead
 			ReportLog_FQN = [ReportLog_FQN, '.txt'];
 		end
+		
+		% Merged sessions with out of date mat have no 
+		if ~exist([ReportLog_FQN], 'file') && exist(fullfile(ReportLog_Dir, [ReportLog_name, '.session_merge_list.txt']), 'file')
+			disp(['Detected oudated mat file for merged session, remerging from original inputs... (might take a while)']);
+			[~, cur_session_id_stem, cur_session_id_ext] = fileparts(ReportLog_Dir);
+			[ out_struct, session_id, session_id_list, out_struct_list  ] = fnLoadDataBySessionDir([cur_session_id_stem, cur_session_id_ext] , override_directive, 'merge');
+		end
+		
 		disp(['Opening: ', ReportLog_FQN]);
 	end
 	%save_matfile = 0;
@@ -138,7 +146,6 @@ if (~exist('ArraySeparator', 'var'))
 	ArraySeparator = '|';
 	OverrideArraySeparator = 0;
 end
-
 
 % open the file
 ReportLog_fd = fopen(ReportLog_FQN, 'r');

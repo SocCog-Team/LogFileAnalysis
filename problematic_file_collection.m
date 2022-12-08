@@ -158,5 +158,45 @@ session_dir = fullfile('/Volumes/taskcontroller$/SCP_DATA/SCP-CTRL-01/SESSIONLOG
 triallog_struct = fnAnalyseIndividualSCPSession( fullfile(session_dir, '20170209T165804.A_Curius.B_MixedHPs.SCP_01.triallog'), fullfile(session_dir, 'ANALYSIS'), 'SfN2008');
 
 
+%Error using fnParseEventIDEReportSCPv06>fnParseHeaderTypeDataRecord (line 963)
+%The REWARD-type data record does not match the length of the respective types list, investigate \n REWARD; SubjectA; MANUAL; 390939.2336; 1; 150
+% the early REWARD record does not match the later REWARD records headser
+% or type vector, just ignore these sessions for now.
+session_dir = fullfile('/Volumes/taskcontroller$/SCP_DATA/SCP-CTRL-01/SESSIONLOGS/2017/170201/20170201T144559.A_Curius.B_None.SCP_01.sessiondir'); 
+triallog_struct = fnAnalyseIndividualSCPSession( fullfile(session_dir, '20170201T144559.A_Curius.B_None.SCP_01.triallog'), fullfile(session_dir, 'ANALYSIS'), 'SfN2008');
+
+
+
+% %Error in fnAnalyzeJointTrials (line 1289)                                                                                                  
+% %                            CurCurTrialsInCurrentSetIdx = CurTrialsInCurrentSetIdx(1:vis_pre_trials_idx(end));                                                                                                                                                                       
+% Error in fnAnalyseIndividualSCPSession (line 127)                                                                                          
+%         [tmp_output] = fnAnalyzeJointTrials(SessionLogFQN, OutputBasePath, DataStruct, TrialSets, project_name);                           
+% Error in subject_bias_analysis_sm01 (line 435)                                                                                             
+%                 out = fnAnalyseIndividualSCPSession(CurentSessionLogFQN, cur_TmpOutBaseDir, project_name);                                 
+% Error in SCP_analysis_CLI_wrapper (line 31)                                                                                                
+% eval(mfile_to_run_string);                                                                                                                 
+% }.                                                                                                                                         
+% 1289                             CurCurTrialsInCurrentSetIdx = CurTrialsInCurrentSetIdx(1:vis_pre_trials_idx(end));                        
+
+session_dir = fullfile('/Volumes/taskcontroller$/SCP_DATA/SCP-CTRL-01/SESSIONLOGS/2021/210212/20210212T153711.A_Elmo.B_DL.SCP_01.sessiondir'); 
+triallog_struct = fnAnalyseIndividualSCPSession( fullfile(session_dir, '20210212T153711.A_Elmo.B_DL.SCP_01.triallog'), fullfile(session_dir, 'ANALYSIS'), 'SfN2008');
+
+
+
+session_dir = fullfile('/Volumes/taskcontroller$/SCP_DATA/SCP-CTRL-01/SESSIONLOGS/2021/210202/20210202T154700.A_Elmo.B_DL.SCP_01.sessiondir'); 
+triallog_struct = fnAnalyseIndividualSCPSession( fullfile(session_dir, '20210202T154700.A_Elmo.B_DL.SCP_01.triallog'), fullfile(session_dir, 'ANALYSIS'), 'SfN2008');
+
+
+
+session_dir = fullfile('/Volumes/taskcontroller$/SCP_DATA/SCP-CTRL-01/SESSIONLOGS/2020/201218/20201218T130348.A_Elmo.B_FS.SCP_01.sessiondir'); 
+triallog_struct = fnAnalyseIndividualSCPSession( fullfile(session_dir, '20201218T130348.A_Elmo.B_FS.SCP_01.triallog'), fullfile(session_dir, 'ANALYSIS'), 'SfN2008');
+
+% session with misclassified trials, 281 to 555 where run as SoloA, but
+% with active human partner so actually SemiSolo, used to create a proper
+% fix up code
+session_dir = fullfile('/Volumes/taskcontroller$/SCP_DATA/SCP-CTRL-01/SESSIONLOGS/2021/210616/20210616T124854.A_Elmo.B_ST.SCP_01.sessiondir'); 
+triallog_struct = fnAnalyseIndividualSCPSession( fullfile(session_dir, '20210616T124854.A_Elmo.B_ST.SCP_01.triallog'), fullfile(session_dir, 'ANALYSIS'), 'SfN2008');
+
+
 end
 

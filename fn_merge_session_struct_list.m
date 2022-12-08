@@ -154,12 +154,22 @@ for i_sess = 1 : n_sessions
 				cur_record = cur_log.(cur_record_type);
 				% only correct columns in the data records
 				if (isfield(cur_record, 'header') && isfield(cur_record, 'data')) && ~isempty(cur_record.data)
-					if isequal(cur_record.header, out_struct.(cur_log_type).(cur_record_type).header)
-						[out_struct.(cur_log_type).(cur_record_type), new_data_struct.(cur_log_type).(cur_record_type)] = fn_merge_indexed_cols_and_unique_lists(out_struct.(cur_log_type).(cur_record_type), cur_adjusted_sess_struct.(cur_log_type).(cur_record_type));
-						out_struct.(cur_log_type).(cur_record_type).data = [out_struct.(cur_log_type).(cur_record_type).data; new_data_struct.(cur_log_type).(cur_record_type).data];
-						out_struct.(cur_log_type).(cur_record_type).first_empty_row_idx = size(out_struct.(cur_log_type).(cur_record_type).data, 1) + 1;
-					else
-						error('To be merged data tables have unequal column make-up, FIXME');
+					if isfield(out_struct.(cur_log_type).(cur_record_type), 'header')
+						if  isfield(out_struct.(cur_log_type).(cur_record_type), 'header') && isequal(cur_record.header, out_struct.(cur_log_type).(cur_record_type).header)
+							[out_struct.(cur_log_type).(cur_record_type), new_data_struct.(cur_log_type).(cur_record_type)] = fn_merge_indexed_cols_and_unique_lists(out_struct.(cur_log_type).(cur_record_type), cur_adjusted_sess_struct.(cur_log_type).(cur_record_type));
+							out_struct.(cur_log_type).(cur_record_type).data = [out_struct.(cur_log_type).(cur_record_type).data; new_data_struct.(cur_log_type).(cur_record_type).data];
+							out_struct.(cur_log_type).(cur_record_type).first_empty_row_idx = size(out_struct.(cur_log_type).(cur_record_type).data, 1) + 1;
+						else
+							error('To be merged data tables have unequal column make-up, FIXME');
+						end
+					else		
+						% some records can be ignored, like Totals from an aborted run
+						if ismember(cur_record_type, {'Totals'})
+							disp(['Discrepancy in record ', cur_record_type, ' ignored...']);
+						else
+							error('To be merged data tables have unequal column make-up, FIXME');
+						end
+						
 					end
 				else
 					% for non-data carrying record types just create lists

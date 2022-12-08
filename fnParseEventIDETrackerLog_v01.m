@@ -199,7 +199,11 @@ if strcmp(orig_TrackerLog_ext, '.gz')
 		% found a gziped file, now uncompress
 		disp(['Current trackerlog/signallog file: ', gzip_TrackerLog_FQN]);
 		disp(['Gunzipping the compressed trackerlog/signallog file, might take a while...']);
-		gunzip(gzip_TrackerLog_FQN);
+		if exist(gzip_TrackerLog_FQN, 'file')
+			gunzip(gzip_TrackerLog_FQN);
+		else
+			error('Expected to find gz file, but did not...');
+		end
 	else
 		disp(['Gzipped log file selected: skipping the unzipping since unzipped version already exists,.']);
 		disp(['                           to force unzipping simply delete ', TrackerLog_FQN]);
