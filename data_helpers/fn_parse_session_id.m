@@ -15,7 +15,7 @@ session_info.minute_string = tmp_T_time(4:5);
 session_info.second_string = tmp_T_time(6:7);
 session_info.YYMMDD_string = [session_info.year_string(3:4), session_info.month_string, session_info.day_string];
 session_info.YYYYMMDD_string = [session_info.year_string(1:4), session_info.month_string, session_info.day_string];
-
+session_info.HHmmSS_string = tmp_T_time(2:end);
 
 % get the marker for a merged session (needs to be concise)
 if strcmp('M', session_date_time_string(end))
@@ -38,6 +38,9 @@ session_info.subjects_string = [subject_A_string, '.', subject_B_string];
 
 % the set-up
 session_info.setup_id_string = unprocessed_session_id(2:end);
+
+% the full session_id just in case
+session_info.session_id = session_id;
 
 return
 end
