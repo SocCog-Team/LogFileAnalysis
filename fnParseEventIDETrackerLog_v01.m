@@ -34,6 +34,9 @@ function [ data_struct, version_string ] = fnParseEventIDETrackerLog_v01( Tracke
 %		the challenge now is getting the according l_*_ts and e_8_ts pairs
 %		between both series...
 %		(and this relies on trustworthy tracker time stamps so will not work for PQLabs at all)
+%	For known gaze track files generate and populate a calibration set
+%	identity column, so it gets easy to collect samples of matching
+%	spaces...
 %
 % DONE:
 %   implement and benchmark a textscan based method with after parsing
@@ -57,7 +60,7 @@ fq_mfilename = mfilename('fullpath');
 mfilepath = fileparts(fq_mfilename);
 
 
-version_string = '.v008';	% we append this to the filename to figure out whether a report file should be re-parsed... this needs to be updated whenthe parser changes
+version_string = '.v009';	% we append this to the filename to figure out whether a report file should be re-parsed... this needs to be updated whenthe parser changes
 
 % in case 2 output arguments were given only return the version string
 if (nargout == 2)
@@ -748,6 +751,14 @@ if (add_corrected_tracker_timestamps)
 		
 	end
 end
+
+% some tracker files contain different rows for different sampe types and
+% hence different sets of rows belog together for calibration/mapping purposes
+% try to generate a column containing these set IDs, to make collection
+% these sets e.g. for applying a calibration becomes easier.
+% Check this for all trackerlog types (PupilLabs, EyeLink, PQLabTracker)
+data_struct = fn_create_sample_calibration_set_ID(tracker_type, data_struct);
+
 
 
 data_struct.info.processing_time_ms = toc(timestamps.(mfilename).start);
