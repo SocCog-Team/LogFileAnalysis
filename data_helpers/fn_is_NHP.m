@@ -1,0 +1,29 @@
+function [ isNHP, species_string ] = fn_is_NHP( subject_name )
+%FN_IS_NHP Summary of this function goes here
+%   Detailed explanation goes here
+
+species_string = [];
+
+
+NHP_name_list = {...
+	'Curius', ...
+	'Flaffus', ...
+	'Tesla', ...
+	'Linus', ...
+	'Magnus', ...
+	'Elmo', ...
+	'Bacchus', ...
+	'Pinocchio', ...
+};
+
+isNHP = ismember(subject_name, NHP_name_list);
+
+if (isNHP)
+	species_string = 'NHP';
+else
+	species_string = 'HP'; % human primate
+end
+
+return
+end
+

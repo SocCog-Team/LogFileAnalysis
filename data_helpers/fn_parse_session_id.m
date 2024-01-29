@@ -42,5 +42,8 @@ session_info.setup_id_string = unprocessed_session_id(2:end);
 % the full session_id just in case
 session_info.session_id = session_id;
 
+[~, session_info.species_A] = fn_is_NHP(session_info.subject_A);
+[~, session_info.species_B] = fn_is_NHP(session_info.subject_B);
+
 return
 end
