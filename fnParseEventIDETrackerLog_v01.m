@@ -564,6 +564,12 @@ switch add_method
 			numel_per_cell_list = zeros(size(TrackerLogCell));
 			n_rows = size(TrackerLogCell{1}, 1);
 			
+			if (n_rows == 0)
+				% empty file existed, skip
+				disp([mfilename, ': Tracker log file is empty: ', TmpTrackerLog_FQN]);
+				disp([mfilename, ': skipping...']);
+				return
+			end	
 			% this is sad, but at least on 2019b maci64 textscan
 			% occasionally adds either a NaN or an 0×0 char array after
 			% every line find these and delecte them

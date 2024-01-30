@@ -173,9 +173,25 @@ for i_session = 1 : length(session_id_list)
 				out_struct.(cur_match_string(2:end)) = fnParseEventIDEReportSCPv06(cur_unique_file_fqn);
 				out_struct.(cur_match_string(2:end)).src_fqn = cur_unique_file_fqn;
 			case '.trackerlog'
-				tmp_data = fnParseEventIDETrackerLog_v01( cur_unique_file_fqn, [], [], []);
+				tmp_data = fnParseEventIDETrackerLog_v01( cur_unique_file_fqn, [], [], []); % TODO load and apply calibration to register gaze data
+				cur_trackerlog_info = fn_parse_trackerlog_name(cur_unique_file_fqn);
+				% look for a calibration_file, slow, think about replacing?
+				[GAZEREG_FQN_list, GAZEREG_sessiondir_list, compatible_calibration_trackerlog_fqn_list, non_recalibrated_calibration_trackerlog_fqn_list] = fn_find_compatible_gaze_calibration_sessions(cur_unique_file_fqn);
+				if ~isempty(GAZEREG_FQN_list)
+					[~, GAZEREG_name, GAZEREG_ext] = fileparts(GAZEREG_FQN_list{end});
+					session_basedir = fileparts(GAZEREG_sessiondir_list{end});
+					GAZEREG_FQN = fullfile(session_basedir, [GAZEREG_name, GAZEREG_ext]);
+					if isfile(GAZEREG_FQN)
+						% load the registration matrix... and apply it on the fly...
+						load(GAZEREG_FQN, 'out_registration_struct');
+						[ tmp_data ] = fn_apply_GAZEREG_to_gaze_data(tmp_data, out_registration_struct, 'polynomial');
+					end
+				% apply if one is found other wise report
+				else
+					disp([mfilename, ': No reqistration found for this session, manually do the calibration?']);
+				end
 				out_struct.([cur_match_string(2:end), '_', tmp_data.info.tracker_name]) = tmp_data;
-				out_struct.([cur_match_string(2:end), '_', tmp_data.info.tracker_name]).src_fqn = cur_unique_file_fqn;
+				out_struct.([cur_match_string(2:end), '_', tmp_data.info.tracker_name]).src_fqn = cur_unique_file_fqn;				
 			case '.signallog'
 				tmp_data = fnParseEventIDETrackerLog_v01( cur_unique_file_fqn, [], [], []);
 				out_struct.([cur_match_string(2:end), '_', tmp_data.info.tracker_name]) = tmp_data;
