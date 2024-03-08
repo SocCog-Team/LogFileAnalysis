@@ -1,11 +1,11 @@
-function [ isNHP, species_string ] = fn_is_NHP( subject_name )
+function [ isNHP, short_species_string, full_species_string ] = fn_is_NHP( subject_name )
 %FN_IS_NHP Summary of this function goes here
 %   Detailed explanation goes here
 
-species_string = [];
+short_species_string = [];
+full_species_string = [];
 
-
-NHP_name_list = {...
+macaca_mulatta_name_list = {...
 	'Curius', ...
 	'Flaffus', ...
 	'Tesla', ...
@@ -16,12 +16,16 @@ NHP_name_list = {...
 	'Pinocchio', ...
 };
 
-isNHP = ismember(subject_name, NHP_name_list);
+is_macaca_mulatta = ismember(subject_name, macaca_mulatta_name_list);
 
-if (isNHP)
-	species_string = 'NHP';
+if (is_macaca_mulatta)
+	short_species_string = 'NHP';
+	full_species_string = 'macaca mulatta';
+	isNHP = 1;
 else
-	species_string = 'HP'; % human primate
+	short_species_string = 'HP'; % human primate
+	full_species_string = 'homo sapiens';
+	isNHP = 0;
 end
 
 return
