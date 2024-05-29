@@ -1,6 +1,27 @@
 function [ session_info ] = fn_parse_session_id( session_id )
 %Extract the information from the session_id, e.g. from 20200106T154947.A_None.B_Curius.SCP_01
 
+
+if iscell(session_id)
+	disp([mfilename, ': session_id string is a cell, should not happen, but diving in...']);
+	session_id = session_id{1};
+	if iscell(session_id)
+		error([mfilename, ': session_id string is a nested cell, should not happen...']);
+	end
+end
+
+[session_id_dir, session_id_name, session_id_ext] = fileparts(session_id);
+
+if ~isempty(session_id_dir)
+	error([mfilename, ': session_id string is a path, should not happen...']);
+end	
+
+if strcmp(session_id_ext, '.sessiondir')
+	session_id = session_id_name;
+	%disp([mfilename, ': session_id string end in .sessiondir, will ignore this and operate on the real session_ID part of the string.']);
+end
+
+
 unprocessed_session_id = session_id;
 
 % extract the session date and time
@@ -44,6 +65,10 @@ session_info.session_id = session_id;
 
 [~, session_info.species_A, session_info.full_species_A] = fn_is_NHP(session_info.subject_A);
 [~, session_info.species_B, session_info.full_species_B] = fn_is_NHP(session_info.subject_B);
+
+% some consumers want this relative path
+session_info.SESSIONLOGS_relative_sessiondir = fullfile(session_info.year_string, session_info.YYMMDD_string, [session_info.session_id, '.sessiondir']);
+
 
 return
 end
