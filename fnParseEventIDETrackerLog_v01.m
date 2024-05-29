@@ -281,6 +281,12 @@ info_header_line_list = {};
 info_header_parsed = 0;
 while (~info_header_parsed)
 	current_line = fgetl(TrackerLog_fd);
+
+	if (current_line == -1)
+		disp([mfilename, ': Current logfile is completely empty, skipping']);
+		data_struct.info = info;
+		return
+	end
 	info_header_line_list{end+1} = current_line;
 	current_line_number = current_line_number + 1;
 	found_header_line = 0;
@@ -344,6 +350,8 @@ if ~isempty(strfind(current_line, 'EventIDE TimeStamp')) || ~isempty(strfind(cur
 	if ~isempty(forced_header_string)
 		info_header_line_list{end} = forced_header_string;
 	end
+else
+	data_start_offset = 0;
 end
 data_start_line = current_line_number;
 
