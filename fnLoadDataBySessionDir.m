@@ -189,6 +189,7 @@ for i_session = 1 : length(session_id_list)
 				% apply if one is found other wise report
 				else
 					disp([mfilename, ': No reqistration found for this session, manually do the calibration?']);
+					tmp_data.info.tracker_name = cur_trackerlog_info.TID;
 				end
 				out_struct.([cur_match_string(2:end), '_', tmp_data.info.tracker_name]) = tmp_data;
 				out_struct.([cur_match_string(2:end), '_', tmp_data.info.tracker_name]).src_fqn = cur_unique_file_fqn;				
