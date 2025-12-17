@@ -1,6 +1,8 @@
 function [ session_info ] = fn_parse_session_id( session_id )
 %Extract the information from the session_id, e.g. from 20200106T154947.A_None.B_Curius.SCP_01
 
+in_session_id = session_id;
+
 
 if iscell(session_id)
 	disp([mfilename, ': session_id string is a cell, should not happen, but diving in...']);
@@ -10,10 +12,17 @@ if iscell(session_id)
 	end
 end
 
-[session_id_dir, session_id_name, session_id_ext] = fileparts(session_id);
 
-if ~isempty(session_id_dir)
-	error([mfilename, ': session_id string is a path, should not happen...']);
+if isfolder(session_id)
+	[session_id_dir, session_id_name, session_id_ext] = fileparts(session_id);
+else
+	session_id_dir = [];
+	session_id_name = session_id;
+	session_id_ext = [];
+end
+
+if ~isempty(session_id_dir) && ~strcmp(session_id_ext, '.sessiondir')
+	error([mfilename, ': session_id string is a path not endind in .sessiondir, should not happen...']);
 end	
 
 if strcmp(session_id_ext, '.sessiondir')
@@ -21,8 +30,8 @@ if strcmp(session_id_ext, '.sessiondir')
 	%disp([mfilename, ': session_id string end in .sessiondir, will ignore this and operate on the real session_ID part of the string.']);
 end
 
-
 unprocessed_session_id = session_id;
+
 
 % extract the session date and time
 [session_date_time_string, unprocessed_session_id] = strtok(unprocessed_session_id, '.');
