@@ -34,6 +34,11 @@ session_id_list = {};
 
 in_session_id = session_id;
 
+if ~isempty(regexp(session_id, '.sessiondir$', 'match')) && ~isfolder(session_id)
+	disp(['SessionID containes .sessiondir suffix, chopping off', session_id]);
+	in_session_id = session_id;
+	session_id = regexprep(session_id, '.sessiondir$', '');
+end
 
 % % the idea here is to merge all session in session_id and save out as merged_session_id
 % if ~exist('merged_session_id', 'var') || isempty(merged_session_id)

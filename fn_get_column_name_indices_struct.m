@@ -14,7 +14,7 @@ end
 n_fields = length(name_list);
 for i_col = 1 : length(name_list)
 	cur_name = name_list{i_col};
-	% skip empty names, this allows non consequtive numberings
+	% skip empty names, this allows non consecutive numberings
 	if ~isempty(cur_name)
 		columnnames_struct.(cur_name) = i_col + (start_val - 1);
 	end

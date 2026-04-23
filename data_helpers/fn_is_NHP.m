@@ -20,7 +20,7 @@ macaca_mulatta_name_list = {...
 };
 is_macaca_mulatta = ismember(subject_name, macaca_mulatta_name_list);
 
-none_subject_name_list = {'None'};
+none_subject_name_list = {'None', 'NONE'};
 is_missing_subject = ismember(subject_name, none_subject_name_list);
 
 
