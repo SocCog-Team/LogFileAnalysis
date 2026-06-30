@@ -30,6 +30,12 @@ if strcmp(session_id_ext, '.sessiondir')
 	%disp([mfilename, ': session_id string end in .sessiondir, will ignore this and operate on the real session_ID part of the string.']);
 end
 
+if contains(session_id, '.sessiondir')
+	% let"s chop this off, as otherwuse we repeat the string .sessiondir
+	session_id = regexprep(session_id, '.sessiondir$', '');
+end
+
+
 unprocessed_session_id = session_id;
 
 
