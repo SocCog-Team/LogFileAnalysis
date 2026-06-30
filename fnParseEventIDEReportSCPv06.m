@@ -38,7 +38,7 @@ mfilepath = fileparts(fq_mfilename);
 calling_dir = pwd;
 
 save_matfile = 1;
-version_string = '.v017';	% we append this to the filename to figure out whether a report file should be re-parsed... this needs to be updated whenthe parser changes
+version_string = '.v018';	% we append this to the filename to figure out whether a report file should be re-parsed... this needs to be updated whenthe parser changes
 
 suffix_string = '';
 test_timing = 0;
@@ -487,7 +487,65 @@ data_struct = fn_process_data_struct_by_keyword(data_struct, 'InitialFixationAdj
 
 if isempty(fieldnames(Enums_struct))
 	Enums_struct = fnSynthesizeEnumStruct(fullfile(mfilepath, 'RefenenceEnums.txt'), ItemSeparator, ArraySeparator);
+	Enums_struct = fnSynthesizeEnumStruct(fullfile(mfilepath, 'RefenenceEnums.20230707.txt'), ItemSeparator, ArraySeparator);	% update to latest
+else
+	latest_Enums_struct = fnSynthesizeEnumStruct(fullfile(mfilepath, 'RefenenceEnums.20230707.txt'), ItemSeparator, ArraySeparator);	% update to latest
+	orig_Enums_struct = Enums_struct;
+	if length(fieldnames(Enums_struct)) < length(fieldnames(latest_Enums_struct))
+		Enums_struct = fn_add_structs(Enums_struct, latest_Enums_struct, 'keep_first', 0);
+	end
 end
+
+if any(~contains(data_struct.header, 'A_TrialSubTypeENUM_idx'))
+	% let's synthesise this
+	RawA_per_trial = data_struct.data(:, data_struct.cn.A_NumberRewardPulsesDelivered_HIT);
+	RawB_per_trial = data_struct.data(:, data_struct.cn.B_NumberRewardPulsesDelivered_HIT);
+	
+	Dyadic_trial_ldx = (RawA_per_trial > 0) & (RawB_per_trial > 0);
+	SoloA_trial_ldx = (RawA_per_trial > 0) & (RawB_per_trial == 0);
+	SoloB_trial_ldx = (RawA_per_trial == 0) & (RawB_per_trial > 0);
+
+	Dyadic_ENUM_idx = find(ismember(Enums_struct.TrialSubTypes.unique_lists.TrialSubTypes, {'Dyadic'}));
+	SoloA_ENUM_idx = find(ismember(Enums_struct.TrialSubTypes.unique_lists.TrialSubTypes, {'SoloA'}));
+	SoloB_ENUM_idx = find(ismember(Enums_struct.TrialSubTypes.unique_lists.TrialSubTypes, {'SoloB'}));
+
+	cur_col = zeros([size(data_struct.data, 1), 1]);
+	cur_col(Dyadic_trial_ldx) = Dyadic_ENUM_idx;
+	cur_col(SoloA_trial_ldx) = SoloA_ENUM_idx;
+	cur_col(SoloB_trial_ldx) = SoloB_ENUM_idx;
+	zero_idx = find(cur_col == 0);
+
+	%AB_playing = (data_struct.data(:, data_struct.cn.A_IsPlaying) > 0) & (data_struct.data(:, data_struct.cn.A_IsPlaying) > 0)
+	%onlyA_playing = (data_struct.data(:, data_struct.cn.A_IsPlaying) > 0) & (data_struct.data(:, data_struct.cn.A_IsPlaying) == 0);
+	%onlyB_playing = (data_struct.data(:, data_struct.cn.A_IsPlaying) == 0) & (data_struct.data(:, data_struct.cn.A_IsPlaying) > 0);
+
+	% this is best effort and will misclassify non-rewarded trials
+	for i_zero_idx = 1 : length(zero_idx)
+	 	cur_zero_idx = zero_idx(i_zero_idx);
+	 	if cur_zero_idx == 1
+			if (cur_col(2) ~= 0)
+				cur_col(cur_zero_idx) = cur_col(2);
+			end
+		elseif cur_zero_idx == size(data_struct.data, 1)
+			if (cur_col(end - 1) ~= 0)
+				cur_col(cur_zero_idx) = cur_col(end - 1);
+			end
+		else
+			% just copy forward, not 100% perfect, but 
+			if (cur_col(cur_zero_idx - 1) ~= 0)
+				cur_col(cur_zero_idx) = cur_col(cur_zero_idx - 1);
+			end
+		end
+	end
+	% now add this
+	data_struct.data(:, end + 1) = cur_col;
+	data_struct.header(end+1) = {'A_TrialSubTypeENUM_idx'};
+	data_struct.data(:, end + 1) = cur_col;
+	data_struct.header(end+1) = {'B_TrialSubTypeENUM_idx'};
+	data_struct.cn = local_get_column_name_indices(data_struct.header);
+
+end
+
 
 if ~isempty(fieldnames(Enums_struct))
 	% for all named enums find matching columns and create and add the
