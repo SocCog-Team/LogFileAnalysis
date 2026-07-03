@@ -12,6 +12,109 @@ elseif isfield(input_struct.EventIDEinfo, 'DateVector')
 	date_num = tmp_DateVector(1) * 10000+ tmp_DateVector(2) * 100 +tmp_DateVector(3) * 1;
 end
 
+% a few sessions have inconsistent TrialSubType information, when EventIDE
+% was set to dyadic, but only a single name was registered then the code
+% fell back to Solo mode, but did not actually record that as the used
+% trial type, so try to fix this here
+% syndrom TrialSubType implies two players, but only one name different
+% from None
+
+cur_per_trial_subject_A_list = output_struct.unique_lists.A_Name(output_struct.data(:, output_struct.cn.A_Name_idx));
+%cur_per_trial_isActive_A_list = output_struct.data(:, output_struct.cn.A_IsActive);
+cur_per_trial_isPlaying_A_list = output_struct.data(:, output_struct.cn.A_IsPlaying);
+cur_per_trial_RawA = output_struct.data(:, output_struct.cn.A_NumberRewardPulsesDelivered_HIT);
+
+cur_per_trial_subject_B_list = output_struct.unique_lists.B_Name(output_struct.data(:, output_struct.cn.B_Name_idx));
+if (size(cur_per_trial_subject_B_list, 1) ~= size(cur_per_trial_subject_A_list, 1)) && (numel(cur_per_trial_subject_A_list) == numel(cur_per_trial_subject_B_list))
+	cur_per_trial_subject_B_list = cur_per_trial_subject_B_list';
+end
+
+%cur_per_trial_isactive_B_list = output_struct.data(:, output_struct.cn.B_IsActive);
+cur_per_trial_isPlaying_B_list = output_struct.data(:, output_struct.cn.B_IsPlaying);
+cur_per_trial_RawB = output_struct.data(:, output_struct.cn.B_NumberRewardPulsesDelivered_HIT);
+
+joint_reward = cur_per_trial_RawA + cur_per_trial_RawB;
+non_zero_joint_reward_ldx = joint_reward ~= 0;
+
+[unique_IsPlaying_Combination_list, ~, IsPlaying_Combination_list_row_idx] = unique([cur_per_trial_isPlaying_A_list, cur_per_trial_isPlaying_B_list], 'rows', 'stable');
+
+merged_name_list = append(cur_per_trial_subject_A_list, '_', cur_per_trial_subject_B_list);
+
+[unique_Name_Combination_list, ~, Name_Combination_list_row_idx] = unique(merged_name_list, 'stable');
+
+
+TrialSubType_col_ldx = contains(output_struct.header, '_TrialSubType');
+TrialSubType_col_idx = find(TrialSubType_col_ldx);
+
+for i_unique_Name_Combination = 1 : length(unique_Name_Combination_list)
+	cur_unique_Name_Combination = unique_Name_Combination_list(i_unique_Name_Combination, :);
+	[cur_Name_A, rem] = strtok(cur_unique_Name_Combination{1}, '_');
+	cur_Name_B = regexprep(rem, '^_', '');
+
+	cur_trial_ldx = Name_Combination_list_row_idx == i_unique_Name_Combination;
+
+	TrialSubType_class = [];
+	might_be_semisolo = 0;
+	if ~strcmp(cur_Name_A, 'None') && ~strcmp(cur_Name_B, 'None')
+		% Dyadic
+		TrialSubType_class = 'Dyadic';
+		% could be SemiSolo as well, 
+		if max(joint_reward(cur_trial_ldx)) == 4
+			disp([mfilename, ': WARN: we might have found misclassified SemiSolo trials']);
+			might_be_semisolo = 1;
+		end
+	elseif ~strcmp(cur_Name_A, 'None') && strcmp(cur_Name_B, 'None')
+		TrialSubType_class = 'SoloA';
+	elseif strcmp(cur_Name_A, 'None') && ~strcmp(cur_Name_B, 'None')
+		TrialSubType_class = 'SoloB';
+	end
+	
+	if isfield(output_struct.cn, 'A_TrialSubType_idx')
+		cur_TrialSubType_list = output_struct.unique_lists.A_TrialSubType(output_struct.data(cur_trial_ldx, output_struct.cn.A_TrialSubType_idx));
+	elseif isfield(output_struct.cn, 'A_TrialSubTypeENUM_idx')
+		cur_TrialSubType_list = output_struct.Enums.TrialSubTypes.unique_lists.TrialSubTypes(output_struct.data(cur_trial_ldx, output_struct.cn.A_TrialSubTypeENUM_idx));
+	end
+
+	unique_cur_TrialSubType_list = unique(cur_TrialSubType_list);
+	if all(contains(unique_cur_TrialSubType_list, TrialSubType_class))
+		% we are matching well enough
+		continue
+	else
+		if might_be_semisolo && contains(cur_TrialSubType_list, 'SemiSolo')
+			continue
+		end
+		% a class difference ty to fix
+		cur_ENUM_idx = find(ismember(output_struct.Enums.TrialSubTypes.unique_lists.TrialSubTypes, {TrialSubType_class}));
+		for i_TrialSubType_col = 1 : length(TrialSubType_col_idx)
+			cur_TrialSubType_col = TrialSubType_col_idx(i_TrialSubType_col);
+			cur_header_col = output_struct.header{cur_TrialSubType_col};
+			cur_side = cur_header_col(1);
+
+			switch cur_header_col
+				case {'A_TrialSubType_idx', 'B_TrialSubType_idx', 'A_TrialSubTypeString_idx', 'B_TrialSubTypeString_idx'}
+					% per session ordered values indexing 
+					%keyboard	% needs some testing
+					mod_cur_header_col = cur_header_col(1:end-4);
+					if (i_unique_Name_Combination == 1)
+						output_struct.unique_lists.(mod_cur_header_col) = cell([1, length(unique_Name_Combination_list)]);
+					end
+					 output_struct.unique_lists.(mod_cur_header_col)(i_unique_Name_Combination) = {TrialSubType_class};
+					 output_struct.data(cur_trial_ldx, output_struct.cn.(cur_header_col)) = i_unique_Name_Combination;
+				case {'A_TrialSubType', 'B_TrialSubType'}
+					% original zero-based ENUM_idx	, so correct
+					output_struct.data(cur_trial_ldx, output_struct.cn.(cur_header_col)) = cur_ENUM_idx - 1;
+
+				case {'A_TrialSubTypeENUM_idx', 'B_TrialSubTypeENUM_idx'}
+					% matlab style 1-based ENUM_idx
+					output_struct.data(cur_trial_ldx, output_struct.cn.(cur_header_col)) = cur_ENUM_idx;
+					
+			end
+		end
+	end
+end
+
+
+
 
 % 20170912 to 20171010: data TrialType and TrialTypeString are not
 % necessarily correct if TrialTypeSets used and ReportVersion < 8
