@@ -19,10 +19,20 @@ end
 % syndrom TrialSubType implies two players, but only one name different
 % from None
 
+% 20201218T130348.A_Elmo.B_FS.SCP_01 
+% has SoloBRewardAB, Dyadic and SoloA
+% with human partner still registered, but is marked correctly
+
+% 20201217T135022.A_Elmo.B_FS.SCP_01
+% has Dyadic, SoloA but no original TrialSubTypeENUM_idx
+
+
+
 cur_per_trial_subject_A_list = output_struct.unique_lists.A_Name(output_struct.data(:, output_struct.cn.A_Name_idx));
 %cur_per_trial_isActive_A_list = output_struct.data(:, output_struct.cn.A_IsActive);
 cur_per_trial_isPlaying_A_list = output_struct.data(:, output_struct.cn.A_IsPlaying);
-cur_per_trial_RawA = output_struct.data(:, output_struct.cn.A_NumberRewardPulsesDelivered_HIT);
+cur_per_trial_RawA_HIT = output_struct.data(:, output_struct.cn.A_NumberRewardPulsesDelivered_HIT);
+cur_per_trial_RawA_HITOTHER = output_struct.data(:, output_struct.cn.A_NumberRewardPulsesDelivered_HITOTHER);
 
 cur_per_trial_subject_B_list = output_struct.unique_lists.B_Name(output_struct.data(:, output_struct.cn.B_Name_idx));
 if (size(cur_per_trial_subject_B_list, 1) ~= size(cur_per_trial_subject_A_list, 1)) && (numel(cur_per_trial_subject_A_list) == numel(cur_per_trial_subject_B_list))
@@ -31,83 +41,190 @@ end
 
 %cur_per_trial_isactive_B_list = output_struct.data(:, output_struct.cn.B_IsActive);
 cur_per_trial_isPlaying_B_list = output_struct.data(:, output_struct.cn.B_IsPlaying);
-cur_per_trial_RawB = output_struct.data(:, output_struct.cn.B_NumberRewardPulsesDelivered_HIT);
+cur_per_trial_RawB_HIT = output_struct.data(:, output_struct.cn.B_NumberRewardPulsesDelivered_HIT);
+cur_per_trial_RawB_HITOTHER = output_struct.data(:, output_struct.cn.B_NumberRewardPulsesDelivered_HITOTHER) ;
 
-joint_reward = cur_per_trial_RawA + cur_per_trial_RawB;
-non_zero_joint_reward_ldx = joint_reward ~= 0;
+total_reward_HIT = cur_per_trial_RawA_HIT + cur_per_trial_RawB_HIT;
+total_reward_HITOTHER = cur_per_trial_RawA_HITOTHER + cur_per_trial_RawB_HITOTHER;
+total_reward_HITANY = total_reward_HIT + total_reward_HITOTHER;
+RewA_ANY_ldx = cur_per_trial_RawA_HIT > 0 |  cur_per_trial_RawA_HITOTHER > 0;
+RewB_ANY_ldx = cur_per_trial_RawB_HIT > 0 |  cur_per_trial_RawB_HITOTHER > 0;
 
+non_zero_joint_reward_HIT_ldx = total_reward_HIT ~= 0;
+non_zero_joint_reward_ANY_ldx = RewA_ANY_ldx | RewB_ANY_ldx;
+
+% the main problem are trials classified as Dyadic that actually are solo
+Dyadic_trial_ldx = cur_per_trial_RawA_HIT > 0 & cur_per_trial_RawB_HIT > 0;	% any od Dyadic, SemiSolo, DyadicBlockedView
+SoloA_trial_ldx = cur_per_trial_RawA_HIT > 0 & ~cur_per_trial_RawB_HIT > 0;
+SoloARewardAB_trial_ldx = SoloA_trial_ldx > 0 & cur_per_trial_RawB_HITOTHER > 0;
+SoloA_trial_ldx(SoloARewardAB_trial_ldx) = false;	% only one can be true
+SoloB_trial_ldx = ~cur_per_trial_RawA_HIT > 0 & cur_per_trial_RawB_HIT > 0;
+SoloBRewardAB_trial_ldx = SoloB_trial_ldx > 0 & cur_per_trial_RawA_HITOTHER > 0;
+SoloB_trial_ldx(SoloBRewardAB_trial_ldx) = false;	% only one can be true
+
+
+
+
+
+% if two names are registerd we can have either dyadic or solo rewards , if
+% only a single name is registered we only get solo type rewards...
 [unique_IsPlaying_Combination_list, ~, IsPlaying_Combination_list_row_idx] = unique([cur_per_trial_isPlaying_A_list, cur_per_trial_isPlaying_B_list], 'rows', 'stable');
-
 merged_name_list = append(cur_per_trial_subject_A_list, '_', cur_per_trial_subject_B_list);
-
 [unique_Name_Combination_list, ~, Name_Combination_list_row_idx] = unique(merged_name_list, 'stable');
 
+% % these are the columns we might need to fix
+% TrialSubType_col_ldx = contains(output_struct.header, '_TrialSubType');
+% TrialSubType_col_idx = find(TrialSubType_col_ldx);
 
-TrialSubType_col_ldx = contains(output_struct.header, '_TrialSubType');
-TrialSubType_col_idx = find(TrialSubType_col_ldx);
+% the user can enter invalid TrialSubType numbers, but the task does not
+% progress so can safely ignore them
+if isfield(output_struct.cn, 'A_TrialSubTypeENUM_idx')
+	invalid_TrialSubType_ldx = output_struct.data(:, output_struct.cn.A_TrialSubTypeENUM_idx) > length(output_struct.Enums.TrialSubTypes.unique_lists.TrialSubTypes);
+	if any(invalid_TrialSubType_ldx)
+		NONE_idx = find(ismember(lower(output_struct.Enums.TrialSubTypes.unique_lists.TrialSubTypes), {'none'}));
+		output_struct.data(invalid_TrialSubType_ldx, output_struct.cn.A_TrialSubTypeENUM_idx) = NONE_idx;
+	end
+end
+if isfield(output_struct.cn, 'B_TrialSubTypeENUM_idx')
+	invalid_TrialSubType_ldx = output_struct.data(:, output_struct.cn.B_TrialSubTypeENUM_idx) > length(output_struct.Enums.TrialSubTypes.unique_lists.TrialSubTypes);
+	if any(invalid_TrialSubType_ldx)
+		NONE_idx = find(ismember(lower(output_struct.Enums.TrialSubTypes.unique_lists.TrialSubTypes), {'none'}));
+		output_struct.data(invalid_TrialSubType_ldx, output_struct.cn.B_TrialSubTypeENUM_idx) = NONE_idx;
+	end
+end
 
+% now we want to check things for consistency
 for i_unique_Name_Combination = 1 : length(unique_Name_Combination_list)
-	cur_unique_Name_Combination = unique_Name_Combination_list(i_unique_Name_Combination, :);
-	[cur_Name_A, rem] = strtok(cur_unique_Name_Combination{1}, '_');
+	%cur_unique_Name_Combination = unique_Name_Combination_list(i_unique_Name_Combination, :);
+	cur_unique_Name_Combination = unique_Name_Combination_list{i_unique_Name_Combination};
+	[cur_Name_A, rem] = strtok(cur_unique_Name_Combination, '_');
 	cur_Name_B = regexprep(rem, '^_', '');
 
 	cur_trial_ldx = Name_Combination_list_row_idx == i_unique_Name_Combination;
 
-	TrialSubType_class = [];
-	might_be_semisolo = 0;
-	if ~strcmp(cur_Name_A, 'None') && ~strcmp(cur_Name_B, 'None')
-		% Dyadic
-		TrialSubType_class = 'Dyadic';
-		% could be SemiSolo as well, 
-		if max(joint_reward(cur_trial_ldx)) == 4
-			disp([mfilename, ': WARN: we might have found misclassified SemiSolo trials']);
-			might_be_semisolo = 1;
-		end
-	elseif ~strcmp(cur_Name_A, 'None') && strcmp(cur_Name_B, 'None')
-		TrialSubType_class = 'SoloA';
-	elseif strcmp(cur_Name_A, 'None') && ~strcmp(cur_Name_B, 'None')
-		TrialSubType_class = 'SoloB';
-	end
-	
+	% the assigned trial subtypes that might be incorrect...
 	if isfield(output_struct.cn, 'A_TrialSubType_idx')
 		cur_TrialSubType_list = output_struct.unique_lists.A_TrialSubType(output_struct.data(cur_trial_ldx, output_struct.cn.A_TrialSubType_idx));
 	elseif isfield(output_struct.cn, 'A_TrialSubTypeENUM_idx')
 		cur_TrialSubType_list = output_struct.Enums.TrialSubTypes.unique_lists.TrialSubTypes(output_struct.data(cur_trial_ldx, output_struct.cn.A_TrialSubTypeENUM_idx));
 	end
+	unique_cur_TrialSubType_list = unique(cur_TrialSubType_list, 'stable');
+	% however these might be wrong...
 
-	unique_cur_TrialSubType_list = unique(cur_TrialSubType_list);
-	if all(contains(unique_cur_TrialSubType_list, TrialSubType_class))
-		% we are matching well enough
-		continue
-	else
-		if might_be_semisolo && contains(cur_TrialSubType_list, 'SemiSolo')
-			continue
-		end
-		% a class difference ty to fix
-		cur_ENUM_idx = find(ismember(output_struct.Enums.TrialSubTypes.unique_lists.TrialSubTypes, {TrialSubType_class}));
-		for i_TrialSubType_col = 1 : length(TrialSubType_col_idx)
-			cur_TrialSubType_col = TrialSubType_col_idx(i_TrialSubType_col);
-			cur_header_col = output_struct.header{cur_TrialSubType_col};
-			cur_side = cur_header_col(1);
 
-			switch cur_header_col
-				case {'A_TrialSubType_idx', 'B_TrialSubType_idx', 'A_TrialSubTypeString_idx', 'B_TrialSubTypeString_idx'}
-					% per session ordered values indexing 
-					%keyboard	% needs some testing
-					mod_cur_header_col = cur_header_col(1:end-4);
-					if (i_unique_Name_Combination == 1)
-						output_struct.unique_lists.(mod_cur_header_col) = cell([1, length(unique_Name_Combination_list)]);
-					end
-					 output_struct.unique_lists.(mod_cur_header_col)(i_unique_Name_Combination) = {TrialSubType_class};
-					 output_struct.data(cur_trial_ldx, output_struct.cn.(cur_header_col)) = i_unique_Name_Combination;
-				case {'A_TrialSubType', 'B_TrialSubType'}
-					% original zero-based ENUM_idx	, so correct
-					output_struct.data(cur_trial_ldx, output_struct.cn.(cur_header_col)) = cur_ENUM_idx - 1;
+	% SOLO trials can happen with any name combination except None, None...
+	% especially with two names... but since we can disambiguate by 
 
-				case {'A_TrialSubTypeENUM_idx', 'B_TrialSubTypeENUM_idx'}
-					% matlab style 1-based ENUM_idx
-					output_struct.data(cur_trial_ldx, output_struct.cn.(cur_header_col)) = cur_ENUM_idx;
-					
+	% check SoloA trials
+	cur_selected_trials_ldx = SoloA_trial_ldx & cur_trial_ldx;
+	if any(cur_selected_trials_ldx)
+		SoloA_class_TrialSubType_list = {'SoloA', 'SoloAHighReward', 'SoloA_PresentB'};
+		% OK found SoloA trials, check the assigned TrialSubTypes
+		cur_unique_TrialSubTypes_in_data_list = unique(output_struct.Enums.TrialSubTypes.unique_lists.TrialSubTypes(output_struct.data(cur_selected_trials_ldx, output_struct.cn.A_TrialSubTypeENUM_idx)));
+		for i_unique_TrialSubTypes_in_data = 1 : length(cur_unique_TrialSubTypes_in_data_list)
+				cur_unique_TrialSubTypes_in_data = cur_unique_TrialSubTypes_in_data_list{i_unique_TrialSubTypes_in_data};
+				% find the subset of trials of this type
+				cur_unique_TrialSubTypes_in_data_list_ldx = ismember(output_struct.Enums.TrialSubTypes.unique_lists.TrialSubTypes(output_struct.data(:, output_struct.cn.A_TrialSubTypeENUM_idx))', {cur_unique_TrialSubTypes_in_data});
+				if ismember(cur_unique_TrialSubTypes_in_data, SoloA_class_TrialSubType_list)
+					% nothing to do these are already correct
+					disp([mfilename, ': INFO: Existing ', cur_unique_TrialSubTypes_in_data,' labeled trials OK.']);
+				elseif ~ismember(cur_unique_TrialSubTypes_in_data, SoloA_class_TrialSubType_list)
+					disp([mfilename, ': INFO: Existing ', cur_unique_TrialSubTypes_in_data,' labeled trials changed to: ', 'SoloA']);
+					output_struct = fn_change_TrialSubType_information(output_struct, cur_selected_trials_ldx & cur_unique_TrialSubTypes_in_data_list_ldx, '_TrialSubType', 'SoloA');
+				else
+					error([mfilename, ': ERROR: multiple cur_unique_TrialSubTypes_in_data, should not happen']);
+				end
+			end
+	end
+
+	% check SoloARewardAB trials
+	cur_selected_trials_ldx = SoloARewardAB_trial_ldx & cur_trial_ldx;
+	if any(cur_selected_trials_ldx)
+		SoloARewardAB_class_TrialSubType_list = {'SoloARewardAB'};
+		% OK found SoloARewardAB trials, check the assigned TrialSubTypes
+		cur_unique_TrialSubTypes_in_data_list = unique(output_struct.Enums.TrialSubTypes.unique_lists.TrialSubTypes(output_struct.data(cur_selected_trials_ldx, output_struct.cn.A_TrialSubTypeENUM_idx)));
+		for i_unique_TrialSubTypes_in_data = 1 : length(cur_unique_TrialSubTypes_in_data_list)
+				cur_unique_TrialSubTypes_in_data = cur_unique_TrialSubTypes_in_data_list{i_unique_TrialSubTypes_in_data};
+				% find the subset of trials of this type
+				cur_unique_TrialSubTypes_in_data_list_ldx = ismember(output_struct.Enums.TrialSubTypes.unique_lists.TrialSubTypes(output_struct.data(:, output_struct.cn.A_TrialSubTypeENUM_idx))', {cur_unique_TrialSubTypes_in_data});
+				if ismember(cur_unique_TrialSubTypes_in_data, SoloARewardAB_class_TrialSubType_list)
+					% nothing to do these are already correct
+					disp([mfilename, ': INFO: Existing ', cur_unique_TrialSubTypes_in_data,' labeled trials OK.']);
+				elseif ~ismember(cur_unique_TrialSubTypes_in_data, SoloARewardAB_class_TrialSubType_list)
+					disp([mfilename, ': INFO: Existing ', cur_unique_TrialSubTypes_in_data,' labeled trials changed to: ', 'SoloARewardAB']);
+					output_struct = fn_change_TrialSubType_information(output_struct, cur_selected_trials_ldx & cur_unique_TrialSubTypes_in_data_list_ldx, '_TrialSubType', 'SoloARewardAB');
+				else
+					error([mfilename, ': ERROR: multiple cur_unique_TrialSubTypes_in_data, should not happen']);
+				end
+			end
+	end
+
+	% check SoloB trials
+	cur_selected_trials_ldx = SoloB_trial_ldx & cur_trial_ldx;
+	if any(cur_selected_trials_ldx)
+		SoloB_class_TrialSubType_list = {'SoloB', 'SoloBHighReward', 'SoloB_PresentA'};
+		% OK found SoloB trials, check the assigned TrialSubTypes
+		cur_unique_TrialSubTypes_in_data_list = unique(output_struct.Enums.TrialSubTypes.unique_lists.TrialSubTypes(output_struct.data(cur_selected_trials_ldx, output_struct.cn.A_TrialSubTypeENUM_idx)));
+		for i_unique_TrialSubTypes_in_data = 1 : length(cur_unique_TrialSubTypes_in_data_list)
+				cur_unique_TrialSubTypes_in_data = cur_unique_TrialSubTypes_in_data_list{i_unique_TrialSubTypes_in_data};
+				% find the subset of trials of this type
+				cur_unique_TrialSubTypes_in_data_list_ldx = ismember(output_struct.Enums.TrialSubTypes.unique_lists.TrialSubTypes(output_struct.data(:, output_struct.cn.A_TrialSubTypeENUM_idx))', {cur_unique_TrialSubTypes_in_data});
+				if ismember(cur_unique_TrialSubTypes_in_data, SoloB_class_TrialSubType_list)
+					% nothing to do these are already correct
+					disp([mfilename, ': INFO: Existing ', cur_unique_TrialSubTypes_in_data,' labeled trials OK.']);
+				elseif ~ismember(cur_unique_TrialSubTypes_in_data, SoloB_class_TrialSubType_list)
+					disp([mfilename, ': INFO: Existing ', cur_unique_TrialSubTypes_in_data,' labeled trials changed to: ', 'SoloB']);
+					output_struct = fn_change_TrialSubType_information(output_struct, cur_selected_trials_ldx & cur_unique_TrialSubTypes_in_data_list_ldx, '_TrialSubType', 'SoloB');
+				else
+					error([mfilename, ': ERROR: multiple cur_unique_TrialSubTypes_in_data, should not happen']);
+				end
+			end
+	end
+
+
+	% check SoloBRewardAB trials
+	cur_selected_trials_ldx = SoloBRewardAB_trial_ldx & cur_trial_ldx;
+	if any(cur_selected_trials_ldx)
+		SoloBRewardAB_class_TrialSubType_list = {'SoloBRewardAB'};
+		% OK found SoloBRewardAB trials, check the assigned TrialSubTypes
+		cur_unique_TrialSubTypes_in_data_list = unique(output_struct.Enums.TrialSubTypes.unique_lists.TrialSubTypes(output_struct.data(cur_selected_trials_ldx, output_struct.cn.A_TrialSubTypeENUM_idx)));
+		for i_unique_TrialSubTypes_in_data = 1 : length(cur_unique_TrialSubTypes_in_data_list)
+				cur_unique_TrialSubTypes_in_data = cur_unique_TrialSubTypes_in_data_list{i_unique_TrialSubTypes_in_data};
+				% find the subset of trials of this type
+				cur_unique_TrialSubTypes_in_data_list_ldx = ismember(output_struct.Enums.TrialSubTypes.unique_lists.TrialSubTypes(output_struct.data(:, output_struct.cn.A_TrialSubTypeENUM_idx))', {cur_unique_TrialSubTypes_in_data});
+				if ismember(cur_unique_TrialSubTypes_in_data, SoloBRewardAB_class_TrialSubType_list)
+					% nothing to do these are already correct
+					disp([mfilename, ': INFO: Existing ', cur_unique_TrialSubTypes_in_data,' labeled trials OK.']);
+				elseif ~ismember(cur_unique_TrialSubTypes_in_data, SoloBRewardAB_class_TrialSubType_list)
+					disp([mfilename, ': INFO: Existing ', cur_unique_TrialSubTypes_in_data,' labeled trials changed to: ', 'SoloBRewardAB']);
+					output_struct = fn_change_TrialSubType_information(output_struct, cur_selected_trials_ldx & cur_unique_TrialSubTypes_in_data_list_ldx, '_TrialSubType', 'SoloBRewardAB');
+				else
+					error([mfilename, ': ERROR: multiple cur_unique_TrialSubTypes_in_data, should not happen']);
+				end
+			end
+	end
+
+
+	% dyadic trials require both names different from None
+	if ~strcmp(cur_Name_A, 'None') && ~strcmp(cur_Name_B, 'None')
+		cur_selected_trials_ldx = Dyadic_trial_ldx & cur_trial_ldx;
+		dyadic_class_TrialSubType_list = {'Dyadic', 'DyadicBlockedView', 'SemiSolo'};
+		if any(cur_selected_trials_ldx)
+			% OK found Dyadic trials, check the assigned TrialSubTypes
+			cur_unique_TrialSubTypes_in_data_list = unique(output_struct.Enums.TrialSubTypes.unique_lists.TrialSubTypes(output_struct.data(cur_selected_trials_ldx, output_struct.cn.A_TrialSubTypeENUM_idx)));
+			for i_unique_TrialSubTypes_in_data = 1 : length(cur_unique_TrialSubTypes_in_data_list)
+				cur_unique_TrialSubTypes_in_data = cur_unique_TrialSubTypes_in_data_list{i_unique_TrialSubTypes_in_data};
+				% find the subset of trials of this type
+				cur_unique_TrialSubTypes_in_data_list_ldx = ismember(output_struct.Enums.TrialSubTypes.unique_lists.TrialSubTypes(output_struct.data(:, output_struct.cn.A_TrialSubTypeENUM_idx))', {cur_unique_TrialSubTypes_in_data});
+				if ismember(cur_unique_TrialSubTypes_in_data, dyadic_class_TrialSubType_list)
+					% nothing to do these are already correct
+					disp([mfilename, ': INFO: Existing ', cur_unique_TrialSubTypes_in_data,' labeled trials OK.']);
+				elseif ~ismember(cur_unique_TrialSubTypes_in_data, dyadic_class_TrialSubType_list)
+					disp([mfilename, ': INFO: Existing ', cur_unique_TrialSubTypes_in_data,' labeled trials changed to: ', 'Dyadic']);
+					output_struct = fn_change_TrialSubType_information(output_struct, cur_selected_trials_ldx & cur_unique_TrialSubTypes_in_data_list_ldx, '_TrialSubType', 'Dyadic');
+				else
+					error([mfilename, ': ERROR: multiple cur_unique_TrialSubTypes_in_data, should not happen']);
+				end
 			end
 		end
 	end
@@ -812,3 +929,54 @@ if (fix_TargetOffsetTimes_ms)
 end
 return
 end
+
+
+function [ output_struct ] = fn_change_TrialSubType_information( output_struct, cur_trial_ldx, TrialSubType_col_match_string, TrialSubType_class )
+verbose = 1;
+
+if verbose
+	disp(['Changing to TrialSubType information to: ', TrialSubType_class]);
+end
+% these are the columns we might need to fix
+TrialSubType_col_ldx = contains(output_struct.header, '_TrialSubType');
+TrialSubType_col_idx = find(TrialSubType_col_ldx);
+
+cur_ENUM_idx = find(ismember(output_struct.Enums.TrialSubTypes.unique_lists.TrialSubTypes, {TrialSubType_class}));
+for i_TrialSubType_col = 1 : length(TrialSubType_col_idx)
+	cur_TrialSubType_col = TrialSubType_col_idx(i_TrialSubType_col);
+	cur_header_col = output_struct.header{cur_TrialSubType_col};
+	cur_side = cur_header_col(1);
+
+	switch cur_header_col
+		case {'A_TrialSubType_idx', 'B_TrialSubType_idx', 'A_TrialSubTypeString_idx', 'B_TrialSubTypeString_idx'}
+			% ATTENTION likely wrong for sessions with multiple human
+			% partners, but we want A_TrialSubTypeENUM_idx anywazs
+			% per session ordered values indexing
+			%keyboard	% needs some testing
+			mod_cur_header_col = cur_header_col(1:end-4);
+			if ~isfield(output_struct.unique_lists, mod_cur_header_col)
+				output_struct.unique_lists.(mod_cur_header_col) = {};				
+			end
+			cur_mod_cur_header_col_idx = find(ismember(output_struct.unique_lists.(mod_cur_header_col), {TrialSubType_class}));
+			if isempty(cur_mod_cur_header_col_idx)
+				output_struct.unique_lists.(mod_cur_header_col)(end+1) = {TrialSubType_class};	% only add if this does not yet exist
+				%output_struct.data(cur_trial_ldx, output_struct.cn.(cur_header_col)) = find(ismember(output_struct.unique_lists.(mod_cur_header_col), {TrialSubType_class}));
+			else
+				%disp('Doh...');
+			end
+			output_struct.data(cur_trial_ldx, output_struct.cn.(cur_header_col)) = find(ismember(output_struct.unique_lists.(mod_cur_header_col), {TrialSubType_class}));
+
+		case {'A_TrialSubType', 'B_TrialSubType'}
+			% original zero-based ENUM_idx	, so correct
+			output_struct.data(cur_trial_ldx, output_struct.cn.(cur_header_col)) = cur_ENUM_idx - 1;
+
+		case {'A_TrialSubTypeENUM_idx', 'B_TrialSubTypeENUM_idx'}
+			% matlab style 1-based ENUM_idx
+			output_struct.data(cur_trial_ldx, output_struct.cn.(cur_header_col)) = cur_ENUM_idx;
+	end
+end
+
+end
+
+
+
