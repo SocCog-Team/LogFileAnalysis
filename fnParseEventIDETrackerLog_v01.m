@@ -108,6 +108,11 @@ info.parsing_date_vec = datevec(datetime('now'));
 info.hostname = strtrim(host_name);
 
 
+[~, tracker_name, ~] = fileparts(TrackerLog_FQN);
+session_ID = extractBefore(tracker_name, '.TID_');
+session_info_struct = fn_parse_session_id(session_ID);
+
+
 data_struct.header = {};
 data_struct.data = [];
 
@@ -728,6 +733,36 @@ if (add_corrected_tracker_timestamps)
 			% as well as timing columns
 			% to deduce and track on and offsets for each finger... (we really only want/need the centroid/average)
 			col_data = [];
+			% correct Gaze_X Gaze_y columns, these can contain incorrect
+			% values if EventIDE lost contact with the touch panels, but
+			% Raw_centroid_position_X and Raw_centroid_position_X are still
+			% veridical so just apply the respective calibration matrix if
+			% it exists:
+			if contains(TrackerLog_FQN, 'TID_SecondaryPQLabTrackerB')
+				cur_tracker_side = 'B';
+			elseif  contains(TrackerLog_FQN, 'TID_PQLabTrackerA')
+				cur_tracker_side = 'A';
+			end
+			cur_side_subject = session_info_struct.(['subject_', cur_tracker_side]);
+			cur_calibration_FQN = fullfile(TrackerLog_Dir, ['PQLabsTouchPanelCalibration.Side', cur_tracker_side, '.', cur_side_subject, '.xml']);
+			if isfile(cur_calibration_FQN)
+				Gaze_X = data_struct.data(:, data_struct.cn.Gaze_X);
+				Gaze_Y = data_struct.data(:, data_struct.cn.Gaze_Y);
+				% save the original data for comparison
+				data_struct = fn_handle_data_struct('add_columns', data_struct, [Gaze_X, Gaze_Y], {'orig_Gaze_X', 'orig_GazeY'});
+				% read the calibration data
+				cur_calibration_struct = readstruct(cur_calibration_FQN);
+				% apply calibration: raw*gain+offset 
+				data_struct.data(:, data_struct.cn.Gaze_X) = (data_struct.data(:, data_struct.cn.Raw_centroid_position_X) * cur_calibration_struct.GainX) + cur_calibration_struct.OffsetX;
+				data_struct.data(:, data_struct.cn.Gaze_Y) = (data_struct.data(:, data_struct.cn.Raw_centroid_position_Y) * cur_calibration_struct.GainY) + cur_calibration_struct.OffsetY;
+				distance_vector = vecnorm([Gaze_X, Gaze_Y] - [data_struct.data(:, data_struct.cn.Gaze_X), data_struct.data(:, data_struct.cn.Gaze_Y)], 2, 2);
+				if sum(distance_vector) > 1000
+					disp([mfilename, ': INFO: EventIDE on-line calibrated data got out of whack, correcting via Raw_centroid_position and PQLabsTouchPanelCalibration.*.xml matrix: ', session_ID]);
+				end
+
+			end
+
+
 		case 'nisignalfilewriter'
 			% here the issue is that the spacing og the NI sampling
 			% probably is relative precise, but the event ide time stamps
