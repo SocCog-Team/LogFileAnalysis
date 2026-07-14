@@ -38,7 +38,7 @@ mfilepath = fileparts(fq_mfilename);
 calling_dir = pwd;
 
 save_matfile = 1;
-version_string = '.v019';	% we append this to the filename to figure out whether a report file should be re-parsed... this needs to be updated whenthe parser changes
+version_string = '.v020';	% we append this to the filename to figure out whether a report file should be re-parsed... this needs to be updated whenthe parser changes
 
 suffix_string = '';
 test_timing = 0;
@@ -1398,11 +1398,15 @@ function [ RewardPerTrialInfo_struct ] = fnExtractPerTrialRewardInfo( Reward_str
 % rewards per side, so or A and B
 
 header = {'A_NumberRewardPulsesDelivered_HIT', 'B_NumberRewardPulsesDelivered_HIT', ...
-	'A_NumberRewardPulsesDelivered_MANUAL', 'B_NumberRewardPulsesDelivered_MANUAL'};
+	'A_NumberRewardPulsesDelivered_MANUAL', 'B_NumberRewardPulsesDelivered_MANUAL', ...
+	'A_NumberRewardPulsesDelivered_HITOTHER', 'B_NumberRewardPulsesDelivered_HITOTHER', ...
+	};
 cn.A_NumberRewardPulsesDelivered_HIT = 1;
 cn.B_NumberRewardPulsesDelivered_HIT = 2;
 cn.A_NumberRewardPulsesDelivered_MANUAL = 3;
 cn.B_NumberRewardPulsesDelivered_MANUAL = 4;
+cn.A_NumberRewardPulsesDelivered_HITOTHER = 5;
+cn.B_NumberRewardPulsesDelivered_HITOTHER = 6;
 
 CommonColumnFragmentString = 'NumberRewardPulsesDelivered';
 
@@ -1418,6 +1422,8 @@ if isempty(CodeB)
 end
 CodeHIT = find(strcmp(Reward_struct.unique_lists.RewardReasonString, 'TASK_HIT'));
 CodeMANUAL = find(strcmp(Reward_struct.unique_lists.RewardReasonString, 'MANUAL'));
+
+CodeHITOTHER = find(strcmp(Reward_struct.unique_lists.RewardReasonString, 'TASK_HIT_OTHER'));
 
 
 
@@ -1456,6 +1462,11 @@ for iTrial = 1 : NumTrials
 		if ~isempty(CodeMANUAL)
 			if Reward_struct.data(CurrentRewardLogLineIdx, Reward_struct.cn.RewardReasonString_idx) == CodeMANUAL;
 				ColSufffix = '_MANUAL';
+			end
+		end
+		if ~isempty(CodeHITOTHER)
+			if Reward_struct.data(CurrentRewardLogLineIdx, Reward_struct.cn.RewardReasonString_idx) == CodeHITOTHER;
+				ColSufffix = '_HITOTHER';
 			end
 		end
 		
