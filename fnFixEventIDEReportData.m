@@ -2,7 +2,11 @@ function [ output_struct ] = fnFixEventIDEReportData( input_struct, fixup_struct
 %FNFIXEVENTIDEREPORTDATA Specific corrections of EventIDE report files
 %   Detailed explanation goes here
 output_struct = input_struct;
-output_struct.FixUpReport = {};
+
+if isfield(output_struct, 'FixUpReport')
+	disp([mfilename, ': WARN: input data already contained a FixUpReport, that is not expected, so we clear this out']);
+end
+output_struct.FixUpReport = {};	% note, this is the only place intended to write FixUpReport
 
 % robustly estimate the session date
 if isfield(input_struct.LoggingInfo, 'SessionDate')
@@ -12,12 +16,18 @@ elseif isfield(input_struct.EventIDEinfo, 'DateVector')
 	date_num = tmp_DateVector(1) * 10000+ tmp_DateVector(2) * 100 +tmp_DateVector(3) * 1;
 end
 
-% a few sessions have inconsistent TrialSubType information, when EventIDE
+
+
+
+% a few sessions have inconsistent TrialSubType information, e.g. when EventIDE
 % was set to dyadic, but only a single name was registered then the code
 % fell back to Solo mode, but did not actually record that as the used
-% trial type, so try to fix this here
-% syndrom TrialSubType implies two players, but only one name different
-% from None
+% trial sub type (taht stayed as dyadic), so try to fix this here
+% The syndrom is TrialSubType implies two players, but the reward information 
+% e.g. for Side_A: A_NumberRewardPulsesDelivered_HI, and
+% A_NumberRewardPulsesDelivered_HITOTHER indicate that a given trial
+% was Dyadic (of any kind, including SemiSolo), Solo, or SoloARewardAB/SoloBRewardAB
+
 
 % 20201218T130348.A_Elmo.B_FS.SCP_01 
 % has SoloBRewardAB, Dyadic and SoloA
@@ -26,7 +36,7 @@ end
 % 20201217T135022.A_Elmo.B_FS.SCP_01
 % has Dyadic, SoloA but no original TrialSubTypeENUM_idx
 
-
+fixed_TrialSubTypes = 0;
 
 cur_per_trial_subject_A_list = output_struct.unique_lists.A_Name(output_struct.data(:, output_struct.cn.A_Name_idx));
 %cur_per_trial_isActive_A_list = output_struct.data(:, output_struct.cn.A_IsActive);
@@ -83,6 +93,7 @@ if isfield(output_struct.cn, 'A_TrialSubTypeENUM_idx')
 	if any(invalid_TrialSubType_ldx)
 		NONE_idx = find(ismember(lower(output_struct.Enums.TrialSubTypes.unique_lists.TrialSubTypes), {'none'}));
 		output_struct.data(invalid_TrialSubType_ldx, output_struct.cn.A_TrialSubTypeENUM_idx) = NONE_idx;
+		output_struct.FixUpReport{end+1} = ['TrialSubType Validity: Fixed invalid TrialSubType A_TrialSubTypeENUM_idx'];
 	end
 end
 if isfield(output_struct.cn, 'B_TrialSubTypeENUM_idx')
@@ -90,6 +101,7 @@ if isfield(output_struct.cn, 'B_TrialSubTypeENUM_idx')
 	if any(invalid_TrialSubType_ldx)
 		NONE_idx = find(ismember(lower(output_struct.Enums.TrialSubTypes.unique_lists.TrialSubTypes), {'none'}));
 		output_struct.data(invalid_TrialSubType_ldx, output_struct.cn.B_TrialSubTypeENUM_idx) = NONE_idx;
+		output_struct.FixUpReport{end+1} = ['TrialSubType Validity: Fixed invalid TrialSubType B_TrialSubTypeENUM_idx'];
 	end
 end
 
@@ -131,6 +143,7 @@ for i_unique_Name_Combination = 1 : length(unique_Name_Combination_list)
 				elseif ~ismember(cur_unique_TrialSubTypes_in_data, SoloA_class_TrialSubType_list)
 					disp([mfilename, ': INFO: Existing ', cur_unique_TrialSubTypes_in_data,' labeled trials changed to: ', 'SoloA']);
 					output_struct = fn_change_TrialSubType_information(output_struct, cur_selected_trials_ldx & cur_unique_TrialSubTypes_in_data_list_ldx, '_TrialSubType', 'SoloA');
+					fixed_TrialSubTypes = 1;
 				else
 					error([mfilename, ': ERROR: multiple cur_unique_TrialSubTypes_in_data, should not happen']);
 				end
@@ -153,6 +166,7 @@ for i_unique_Name_Combination = 1 : length(unique_Name_Combination_list)
 				elseif ~ismember(cur_unique_TrialSubTypes_in_data, SoloARewardAB_class_TrialSubType_list)
 					disp([mfilename, ': INFO: Existing ', cur_unique_TrialSubTypes_in_data,' labeled trials changed to: ', 'SoloARewardAB']);
 					output_struct = fn_change_TrialSubType_information(output_struct, cur_selected_trials_ldx & cur_unique_TrialSubTypes_in_data_list_ldx, '_TrialSubType', 'SoloARewardAB');
+					fixed_TrialSubTypes = 1;
 				else
 					error([mfilename, ': ERROR: multiple cur_unique_TrialSubTypes_in_data, should not happen']);
 				end
@@ -175,6 +189,7 @@ for i_unique_Name_Combination = 1 : length(unique_Name_Combination_list)
 				elseif ~ismember(cur_unique_TrialSubTypes_in_data, SoloB_class_TrialSubType_list)
 					disp([mfilename, ': INFO: Existing ', cur_unique_TrialSubTypes_in_data,' labeled trials changed to: ', 'SoloB']);
 					output_struct = fn_change_TrialSubType_information(output_struct, cur_selected_trials_ldx & cur_unique_TrialSubTypes_in_data_list_ldx, '_TrialSubType', 'SoloB');
+					fixed_TrialSubTypes = 1;					
 				else
 					error([mfilename, ': ERROR: multiple cur_unique_TrialSubTypes_in_data, should not happen']);
 				end
@@ -198,6 +213,7 @@ for i_unique_Name_Combination = 1 : length(unique_Name_Combination_list)
 				elseif ~ismember(cur_unique_TrialSubTypes_in_data, SoloBRewardAB_class_TrialSubType_list)
 					disp([mfilename, ': INFO: Existing ', cur_unique_TrialSubTypes_in_data,' labeled trials changed to: ', 'SoloBRewardAB']);
 					output_struct = fn_change_TrialSubType_information(output_struct, cur_selected_trials_ldx & cur_unique_TrialSubTypes_in_data_list_ldx, '_TrialSubType', 'SoloBRewardAB');
+					fixed_TrialSubTypes = 1;
 				else
 					error([mfilename, ': ERROR: multiple cur_unique_TrialSubTypes_in_data, should not happen']);
 				end
@@ -222,6 +238,7 @@ for i_unique_Name_Combination = 1 : length(unique_Name_Combination_list)
 				elseif ~ismember(cur_unique_TrialSubTypes_in_data, dyadic_class_TrialSubType_list)
 					disp([mfilename, ': INFO: Existing ', cur_unique_TrialSubTypes_in_data,' labeled trials changed to: ', 'Dyadic']);
 					output_struct = fn_change_TrialSubType_information(output_struct, cur_selected_trials_ldx & cur_unique_TrialSubTypes_in_data_list_ldx, '_TrialSubType', 'Dyadic');
+					fixed_TrialSubTypes = 1;
 				else
 					error([mfilename, ': ERROR: multiple cur_unique_TrialSubTypes_in_data, should not happen']);
 				end
@@ -230,6 +247,9 @@ for i_unique_Name_Combination = 1 : length(unique_Name_Combination_list)
 	end
 end
 
+% if (fixed_TrialSubTypes)
+% 	output_struct.FixUpReport{end+1} = ['TrialSubType: Fixed assignment of TrialSubType from reward data (HIT and HITOTHER)'];
+% end
 
 
 
@@ -831,7 +851,7 @@ for i_trial = 1: size(input_struct.data, 1)
 	
 end
 
-ouput_struct.FixUpReport{end+1} = 'Fixed sporadically wrong TrialType assignments using the stimuli struct';
+ouput_struct.FixUpReport{end+1} = 'TrialType: Fixed sporadically wrong TrialType assignments using the stimuli struct';
 return
 end
 
@@ -925,7 +945,7 @@ if (fix_TargetOffsetTimes_ms)
 	% in any given trial TargetOffsetTimes_ms should correspond roughly
 	% with the start of 
 	error('Not implemented yet...');
-	output_struct.FixUpReport{end+1} = ['Corrected TargetOffsetTimes_ms from RenderState'];
+	output_struct.FixUpReport{end+1} = ['fn_correct_TargetOffsetTimes_ms_from_RenderState: Corrected TargetOffsetTimes_ms from RenderState'];
 end
 return
 end
@@ -975,6 +995,9 @@ for i_TrialSubType_col = 1 : length(TrialSubType_col_idx)
 			output_struct.data(cur_trial_ldx, output_struct.cn.(cur_header_col)) = cur_ENUM_idx;
 	end
 end
+
+output_struct.FixUpReport{end+1} = ['fn_change_TrialSubType_information: Fixed assignment of TrialSubType from reward data (HIT and HITOTHER): corrected TrialSubType: ', TrialSubType_class, ' (', num2str(sum(cur_trial_ldx)), ' trials)'];
+
 
 end
 
