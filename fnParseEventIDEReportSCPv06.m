@@ -1,4 +1,4 @@
-function [ report_struct, version_string ] = fnParseEventIDEReportSCPv06( ReportLog_FQN, ItemSeparator, ArraySeparator, override_directive )
+function [ report_struct, version_string ] = fnParseEventIDEReportSCPv06( ReportLog_FQN, ItemSeparator, ArraySeparator, override_directive, request_list )
 %fnParseEventIDEReportSCP parse the EventIDE report files generates as part
 %of the social cognition plattform at the DPZ
 %   Try to read in eventIDE report files for DPZ SCP experiments
@@ -61,6 +61,10 @@ add_trial_start_and_end_times = 1;
 fixup_struct.add_trial_start_and_end_times = add_trial_start_and_end_times;
 
 
+if ~exist('request_list', 'var') || isempty(request_list)
+	request_list = {};
+end
+force_parsing = any(strcmpi(request_list, 'force_parsing'));
 
 if (test_timing)
 	suffix_string = [suffix_string, '.', add_method];
@@ -78,7 +82,7 @@ info.experiment_eve = [];
 data_struct.header = {};
 data_struct.data = [];
 report_struct = struct();
-
+data_struct.FixUpReport = {};
 
 if (~exist('ReportLog_FQN', 'var'))
 	[ReportLog_name, ReportLog_Dir] = uigetfile('*.log', 'Select the eventIDE log file to parse');
@@ -93,7 +97,7 @@ else
 	% parse the txt file if no current mat file exists
 	if strcmp(ReportLog_Ext, '.triallog')
 		disp('Trying to get the most cooked version of the triallog file:');
-		if exist([ReportLog_FQN, version_string, '.mat'], 'file')
+		if exist([ReportLog_FQN, version_string, '.mat'], 'file')  && ~force_parsing
 			% mat file exists, simply load and return
 			ReportLog_FQN = [ReportLog_FQN, version_string, '.mat'];
 		else
@@ -119,32 +123,43 @@ end
 
 [ReportLog_path, ReportLog_name, ReportLog_ext] = fileparts(ReportLog_FQN);
 if strcmp(ReportLog_ext, '.mat')
-	% this seems to be an existing parsed trackerlog so just read it in if
-	% it is current
-	%report_struct = load(ReportLog_FQN);
-	load(ReportLog_FQN);
+	if ~force_parsing
+		% this seems to be an existing parsed trackerlog so just read it in if
+		% it is current
+		%report_struct = load(ReportLog_FQN);
+		load(ReportLog_FQN);
 
-	if ~isempty(regexp(ReportLog_name, version_string))
-		disp(['Requested ReportLog is a .mat file of the most recent version, just loading it...']);
+		if ~isempty(regexp(ReportLog_name, version_string))
+			disp(['Requested ReportLog is a .mat file of the most recent version, just loading it...']);
+		else
+			display(['WARNING: the requested ReportLog (', ReportLog_name, ') is not of the current version, still loading it...']);
+		end
+		return
 	else
-		display(['WARNING: the requested ReportLog (', ReportLog_name, ') is not of the current version, still loading it...']);
+		ReportLog_FQN = fullfile(ReportLog_path, [regexprep(ReportLog_name, [version_string, '$'], ''), '.txt']);
+		if ~isfile(ReportLog_FQN)
+			error([mfilename,': ERROR: ReportLog files dies not seem to exist: ', ReportLog_FQN]);
+			return
+		end
+		[ReportLog_path, ReportLog_name, ReportLog_ext] = fileparts(ReportLog_FQN);
 	end
-	return
 end
 
 tmp_dir_ReportLog_FQN = dir(ReportLog_FQN);
 ReportLog_size_bytes  = tmp_dir_ReportLog_FQN.bytes;
 
 % default to semi-colon to separate the LogHeader and data lines
-OverrideItemSeparator = 0;
-if (~exist('ItemSeparator', 'var'))
+if (~exist('ItemSeparator', 'var')) || isempty(ItemSeparator)
 	ItemSeparator = ';';
 	OverrideItemSeparator = 0;
+else
+	OverrideItemSeparator = 1;
 end
-OverrideArraySeparator = 0;
-if (~exist('ArraySeparator', 'var'))
+if (~exist('ArraySeparator', 'var'))|| isempty(ArraySeparator)
 	ArraySeparator = '|';
 	OverrideArraySeparator = 0;
+else
+	OverrideArraySeparator = 1;
 end
 
 % open the file
@@ -530,6 +545,9 @@ if ~any(contains(data_struct.header, 'A_TrialSubType'))
 
 	data_struct = fn_handle_data_struct('add_columns', data_struct, value_list, {'A_TrialSubType_idx'});
 	data_struct = fn_handle_data_struct('add_columns', data_struct, value_list, {'B_TrialSubType_idx'});
+
+	data_struct.FixUpReport{end+1} = ['TrialSubType Information: added synthezised A_TrialSubType_idx'];
+	data_struct.FixUpReport{end+1} = ['TrialSubType Information: added synthezised B_TrialSubType_idx'];
 end
 
 % these can be missing in early sessions, if so create them...
@@ -545,6 +563,7 @@ if ~any(contains(data_struct.header, regexpPattern(['^', cur_prefix, '$'])))
 		cur_0idx_list(cur_valued_ldx) = cur_value_ENUM_idx - 1; % EventIDE indices ENUMs are 0 based...
 	end
 	data_struct = fn_handle_data_struct('add_columns', data_struct, cur_0idx_list, {[cur_prefix, '']});
+	data_struct.FixUpReport{end+1} = ['TrialSubType ENUM: added synthezised A_TrialSubType'];
 end
 cur_prefix = 'B_TrialSubType';
 if ~any(contains(data_struct.header, regexpPattern(['^', cur_prefix, '$'])))
@@ -558,6 +577,7 @@ if ~any(contains(data_struct.header, regexpPattern(['^', cur_prefix, '$'])))
 		cur_0idx_list(cur_valued_ldx) = cur_value_ENUM_idx - 1; % EventIDE indices ENUMs are 0 based...
 	end
 	data_struct = fn_handle_data_struct('add_columns', data_struct, cur_0idx_list, {[cur_prefix, '']});
+	data_struct.FixUpReport{end+1} = ['TrialSubType ENUM: added synthezised B_TrialSubType'];
 end
 
 
