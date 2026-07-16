@@ -4,9 +4,10 @@ function [ output_struct ] = fnFixEventIDEReportData( input_struct, fixup_struct
 output_struct = input_struct;
 
 if isfield(output_struct, 'FixUpReport')
-	disp([mfilename, ': WARN: input data already contained a FixUpReport, that is not expected, so we clear this out']);
+	disp([mfilename, ': INFO: input data already contained a FixUpReport']);
+else
+	output_struct.FixUpReport = {};	% note, this is the only place intended to write FixUpReport
 end
-output_struct.FixUpReport = {};	% note, this is the only place intended to write FixUpReport
 
 % robustly estimate the session date
 if isfield(input_struct.LoggingInfo, 'SessionDate')
