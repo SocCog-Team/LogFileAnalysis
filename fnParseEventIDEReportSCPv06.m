@@ -82,7 +82,8 @@ info.experiment_eve = [];
 data_struct.header = {};
 data_struct.data = [];
 report_struct = struct();
-data_struct.FixUpReport = {};
+%data_struct.FixUpReport = {};	% this gets overwriten later, so is
+%effectiovely useless
 
 if (~exist('ReportLog_FQN', 'var'))
 	[ReportLog_name, ReportLog_Dir] = uigetfile('*.log', 'Select the eventIDE log file to parse');
@@ -109,7 +110,10 @@ else
 		if ~exist([ReportLog_FQN], 'file') && exist(fullfile(ReportLog_Dir, [ReportLog_name, '.session_merge_list.txt']), 'file')
 			disp(['Detected oudated mat file for merged session, remerging from original inputs... (might take a while)']);
 			[~, cur_session_id_stem, cur_session_id_ext] = fileparts(ReportLog_Dir);
-			[ out_struct, session_id, session_id_list, out_struct_list  ] = fnLoadDataBySessionDir([cur_session_id_stem, cur_session_id_ext] , override_directive, 'merge');
+			%[ out_struct, session_id, session_id_list, out_struct_list  ] = fnLoadDataBySessionDir([cur_session_id_stem, cur_session_id_ext] , override_directive, 'merge');
+			fnLoadDataBySessionDir_request_list = {'triallog'}; %  {'triallog', 'signallog'}
+			[ out_struct, session_id, session_id_list, out_struct_list  ] = fnLoadDataBySessionDir( ...
+					[cur_session_id_stem, cur_session_id_ext], override_directive, 'merge', fnLoadDataBySessionDir_request_list);
 		end
 		
 		disp(['Opening: ', ReportLog_FQN]);
@@ -492,6 +496,7 @@ if ~isempty(fieldnames(Reward_struct))
 	data_struct = fn_handle_data_struct('add_columns', data_struct, RewardPerTrialInfo_struct.data, RewardPerTrialInfo_struct.header);
 end
 
+
 % now calculate some columns for convenience of further-down consumers
 data_struct = fn_process_data_struct_by_keyword(data_struct, 'InitialFixationAdjReleaseTime_ms');
 
@@ -511,12 +516,92 @@ else
 	end
 end
 
+
+% we want this to exist, here
+if ~isfield(data_struct, 'FixUpReport') || ~iscell(data_struct.FixUpReport)
+	data_struct.FixUpReport = {};
+end
 % A_TrialSubType; A_TrialSubTypeString;
+% these should exist before we process ENUMs (fnAddEnumsToDataStruct?)
 if ~any(contains(data_struct.header, 'A_TrialSubType'))
 	% let's synthesise this
-	RawA_per_trial = data_struct.data(:, data_struct.cn.A_NumberRewardPulsesDelivered_HIT);
-	RawB_per_trial = data_struct.data(:, data_struct.cn.B_NumberRewardPulsesDelivered_HIT);
-	
+
+
+	n_trials = size(data_struct.data, 1);
+	if isfield(data_struct.cn, 'A_NumberRewardPulsesDelivered_HIT')
+		RawA_per_trial = data_struct.data(:, data_struct.cn.A_NumberRewardPulsesDelivered_HIT);
+		RawB_per_trial = data_struct.data(:, data_struct.cn.B_NumberRewardPulsesDelivered_HIT);
+	else
+		RawA_per_trial = zeros(n_trials, 1);
+		RawB_per_trial = zeros(n_trials, 1);
+	end
+	if isfield(data_struct.cn, 'A_NumberRewardPulsesDelivered_HITOTHER')
+		RawA_per_trial = RawA_per_trial + data_struct.data(:, data_struct.cn.A_NumberRewardPulsesDelivered_HITOTHER);
+		RawB_per_trial = RawB_per_trial + data_struct.data(:, data_struct.cn.B_NumberRewardPulsesDelivered_HITOTHER);
+	end
+
+	if (nnz(RawA_per_trial) == 0) && (nnz(RawB_per_trial) == 0)
+		disp([mfilename, ': WARN: HIT/HITOTHER empty; falling back to NumCorrectRewards']);
+		if ~isfield(data_struct.cn, 'A_NumCorrectRewards') || ~isfield(data_struct.cn, 'B_NumCorrectRewards')
+			disp([mfilename, ': WARN: no HIT pulses and no NumCorrectRewards; skip TrialSubType synthesis (empty/proto log)']);
+			data_struct.FixUpReport{end+1} = 'TrialSubType Information: SKIPPED, no HIT and no NumCorrectRewards';
+		else
+			proto_A = data_struct.data(:, data_struct.cn.A_NumCorrectRewards);
+			proto_B = data_struct.data(:, data_struct.cn.B_NumCorrectRewards);
+		if (n_trials > 1) && all(diff(proto_A) >= 0) && all(diff(proto_B) >= 0)
+			RawA_per_trial = max(0, diff([0; proto_A]));
+			RawB_per_trial = max(0, diff([0; proto_B]));
+		else
+			RawA_per_trial = proto_A;
+			RawB_per_trial = proto_B;
+		end
+		data_struct.FixUpReport{end+1} = 'TrialSubType Information: used NumCorrectRewards (HIT columns empty)';
+
+		% stand-in HIT pulses for pre-HITOTHER logs (0/1 per trial is enough;
+		% fnFix only tests > 0). HITOTHER stays 0.
+		if isfield(data_struct.cn, 'A_NumberRewardPulsesDelivered_HIT')
+			data_struct.data(:, data_struct.cn.A_NumberRewardPulsesDelivered_HIT) = RawA_per_trial;
+			data_struct.data(:, data_struct.cn.B_NumberRewardPulsesDelivered_HIT) = RawB_per_trial;
+		else
+			data_struct = fn_handle_data_struct('add_columns', data_struct, ...
+				[RawA_per_trial, RawB_per_trial], ...
+				{'A_NumberRewardPulsesDelivered_HIT', 'B_NumberRewardPulsesDelivered_HIT'});
+		end
+		if ~isfield(data_struct.cn, 'A_NumberRewardPulsesDelivered_HITOTHER')
+			data_struct = fn_handle_data_struct('add_columns', data_struct, ...
+				zeros(n_trials, 2), ...
+				{'A_NumberRewardPulsesDelivered_HITOTHER', 'B_NumberRewardPulsesDelivered_HITOTHER'});
+		end
+		% HERE ? no REWARD stream  grafting never created MANUAL
+		if ~isfield(data_struct.cn, 'A_NumberRewardPulsesDelivered_MANUAL')
+			man_names = {'A_NumberRewardPulsesDelivered_MANUAL', 'B_NumberRewardPulsesDelivered_MANUAL'};
+			if any(ismember(data_struct.header, man_names))
+				% names in header, cn stale (what you just hit at K>>)
+				data_struct.cn = struct();
+				for i_col = 1 : numel(data_struct.header)
+					if ~isempty(data_struct.header{i_col})
+						data_struct.cn.(data_struct.header{i_col}) = i_col;
+					end
+				end
+			else
+				data_struct = fn_handle_data_struct('add_columns', data_struct, ...
+					zeros(n_trials, 2), man_names);
+			end
+		end
+			data_struct.FixUpReport{end+1} = 'TrialSubType Information: wrote NumCorrectRewards stand-in into HIT columns (HITOTHER=0)';
+		end
+	end
+	% RawA_per_trial = data_struct.data(:, data_struct.cn.A_NumberRewardPulsesDelivered_HIT);
+	% RawB_per_trial = data_struct.data(:, data_struct.cn.B_NumberRewardPulsesDelivered_HIT);
+	% 
+	% % one of these can be all zreo for only-solo sessions, but if both are
+	% % empty we need to get more creative...
+	% if (nnz(RawA_per_trial) == 0) &&  (nnz(RawB_per_trial) == 0)
+	% 	disp([mfilename, ': WARN: both A_NumberRewardPulsesDelivered_HIT and B_NumberRewardPulsesDelivered_HIT appear empty,assuming old sessionfalloing back to reward calculations...']);
+	% 	RawA_per_trial = diff([0;data_struct.data(:, data_struct.cn.A_NumCorrectRewards)]);
+	% 	RawB_per_trial = diff([0;data_struct.data(:, data_struct.cn.B_NumCorrectRewards)]);
+	% end
+
 	Dyadic_trial_ldx = (RawA_per_trial > 0) & (RawB_per_trial > 0);
 	SoloA_trial_ldx = (RawA_per_trial > 0) & (RawB_per_trial == 0);
 	SoloB_trial_ldx = (RawA_per_trial == 0) & (RawB_per_trial > 0);
@@ -527,58 +612,121 @@ if ~any(contains(data_struct.header, 'A_TrialSubType'))
 	value_list(SoloA_trial_ldx) = {'SoloA'};
 	value_list(SoloB_trial_ldx) = {'SoloB'};
 
-	last_value = [];
+	last_value = '';
 	for i_trial = 1 : length(value_list)
 		if ~isempty(value_list{i_trial})	
-			last_value = value_list{i_trial};	% this is actuially the first value, but we really want to fill all holes
+			last_value = value_list{i_trial};	% this is actually the first value, but we really want to fill all holes
 			break
 		end
 	end
 
-	for i_trial = 1 : length(value_list)
-		if isempty(value_list{i_trial})		
-			value_list(i_trial) = {last_value};
-		else
-			last_value = value_list{i_trial};
+	if ~isempty(last_value)
+		for i_trial = 1 : length(value_list)
+			if isempty(value_list{i_trial})
+				value_list(i_trial) = {last_value};
+			else
+				last_value = value_list{i_trial};
+			end
 		end
 	end
 
-	data_struct = fn_handle_data_struct('add_columns', data_struct, value_list, {'A_TrialSubType_idx'});
-	data_struct = fn_handle_data_struct('add_columns', data_struct, value_list, {'B_TrialSubType_idx'});
+	% add_columns('_idx') on a cell column only appends data if cell{1} is a
+	% string; [] / mixed cells add the header name and leave data/unique_lists
+	% untouched, then rebuild cn  later unique_lists.A_TrialSubType crashes
+	value_list_is_char = ~isempty(value_list) ...
+		&& all(cellfun(@(x) ischar(x), value_list));
+	value_list_has_label = value_list_is_char ...
+		&& any(~cellfun(@isempty, value_list));
+	if ~(value_list_has_label)
+		disp([mfilename, ': WARN: TrialSubType synthesis produced no string labels; not adding A/B_TrialSubType_idx']);
+		data_struct.FixUpReport{end+1} = 'TrialSubType Information: SKIPPED synthesis, value_list empty or non-char';
+	else
+		data_struct = fn_handle_data_struct('add_columns', data_struct, value_list, {'A_TrialSubType_idx'});
+		data_struct = fn_handle_data_struct('add_columns', data_struct, value_list, {'B_TrialSubType_idx'});
 
-	data_struct.FixUpReport{end+1} = ['TrialSubType Information: added synthezised A_TrialSubType_idx'];
-	data_struct.FixUpReport{end+1} = ['TrialSubType Information: added synthezised B_TrialSubType_idx'];
+		data_struct.FixUpReport{end+1} = 'TrialSubType Information: added synthezised A_TrialSubType_idx';
+		data_struct.FixUpReport{end+1} = 'TrialSubType Information: added synthezised B_TrialSubType_idx';
+	end
+
+	% data_struct = fn_handle_data_struct('add_columns', data_struct, value_list, {'A_TrialSubType_idx'});
+	% data_struct = fn_handle_data_struct('add_columns', data_struct, value_list, {'B_TrialSubType_idx'});
+	% 
+	% data_struct.FixUpReport{end+1} = ['TrialSubType Information: added synthezised A_TrialSubType_idx'];
+	% data_struct.FixUpReport{end+1} = ['TrialSubType Information: added synthezised B_TrialSubType_idx'];
 end
 
 % these can be missing in early sessions, if so create them...
-cur_prefix = 'A_TrialSubType';
-if ~any(contains(data_struct.header, regexpPattern(['^', cur_prefix, '$'])))
-	cur_value_list = data_struct.unique_lists.A_TrialSubType(data_struct.data(:, data_struct.cn.([cur_prefix, '_idx'])))';
+% only if matching _idx + unique_list exist (synthesis may have skipped)
+for cur_prefix = {'A_TrialSubType', 'B_TrialSubType'}
+	cur_prefix = cur_prefix{1};
+	cur_idx_name = [cur_prefix, '_idx'];
+	if ~isfield(data_struct, 'unique_lists') ...
+			|| ~isfield(data_struct, 'cn') ...
+			|| ~isfield(data_struct, 'header') ...
+			|| ~isfield(data_struct.unique_lists, cur_prefix) ...
+			|| ~isfield(data_struct.cn, cur_idx_name) ...
+			|| any(contains(data_struct.header, regexpPattern(['^', cur_prefix, '$'])))
+		continue
+	end
+
+	cur_idx = data_struct.data(:, data_struct.cn.(cur_idx_name));
+	if any(cur_idx < 1) || any(cur_idx > length(data_struct.unique_lists.(cur_prefix)))
+		disp([mfilename, ': WARN: ', cur_idx_name, ' out of range for unique_lists.', cur_prefix, '; skip ENUM column']);
+		data_struct.FixUpReport{end+1} = ['TrialSubType ENUM: SKIPPED ', cur_prefix, ' (idx out of range)'];
+		continue
+	end
+
+	cur_value_list = data_struct.unique_lists.(cur_prefix)(cur_idx);
+	cur_value_list = cur_value_list(:);	% column, never a row
 	cur_0idx_list = zeros(size(cur_value_list));
 	[unique_value_list, ~, unique_values_list_row_idx] = unique(cur_value_list);
 	for i_unique_value = 1 : length(unique_value_list)
 		cur_value = unique_value_list{i_unique_value};
+		if ~ischar(cur_value) || isempty(cur_value)
+			continue
+		end
 		cur_valued_ldx = unique_values_list_row_idx == i_unique_value;
 		cur_value_ENUM_idx = find(ismember(Enums_struct.TrialSubTypes.unique_lists.TrialSubTypes, {cur_value}));
-		cur_0idx_list(cur_valued_ldx) = cur_value_ENUM_idx - 1; % EventIDE indices ENUMs are 0 based...
+		if isempty(cur_value_ENUM_idx)
+			disp([mfilename, ': WARN: ', cur_value, ' not in TrialSubTypes ENUM']);
+			continue
+		end
+		cur_0idx_list(cur_valued_ldx) = cur_value_ENUM_idx(1) - 1; % EventIDE ENUMs are 0-based
 	end
-	data_struct = fn_handle_data_struct('add_columns', data_struct, cur_0idx_list, {[cur_prefix, '']});
-	data_struct.FixUpReport{end+1} = ['TrialSubType ENUM: added synthezised A_TrialSubType'];
+	data_struct = fn_handle_data_struct('add_columns', data_struct, cur_0idx_list, {cur_prefix});
+	data_struct.FixUpReport{end+1} = ['TrialSubType ENUM: added synthezised ', cur_prefix];
 end
-cur_prefix = 'B_TrialSubType';
-if ~any(contains(data_struct.header, regexpPattern(['^', cur_prefix, '$'])))
-	cur_value_list = data_struct.unique_lists.A_TrialSubType(data_struct.data(:, data_struct.cn.([cur_prefix, '_idx'])))';
-	cur_0idx_list = zeros(size(cur_value_list));
-	[unique_value_list, ~, unique_values_list_row_idx] = unique(cur_value_list);
-	for i_unique_value = 1 : length(unique_value_list)
-		cur_value = unique_value_list{i_unique_value};
-		cur_valued_ldx = unique_values_list_row_idx == i_unique_value;
-		cur_value_ENUM_idx = find(ismember(Enums_struct.TrialSubTypes.unique_lists.TrialSubTypes, {cur_value}));
-		cur_0idx_list(cur_valued_ldx) = cur_value_ENUM_idx - 1; % EventIDE indices ENUMs are 0 based...
-	end
-	data_struct = fn_handle_data_struct('add_columns', data_struct, cur_0idx_list, {[cur_prefix, '']});
-	data_struct.FixUpReport{end+1} = ['TrialSubType ENUM: added synthezised B_TrialSubType'];
-end
+
+
+% % these can be missing in early sessions, if so create them...
+% cur_prefix = 'A_TrialSubType';
+% if ~any(contains(data_struct.header, regexpPattern(['^', cur_prefix, '$'])))
+% 	cur_value_list = data_struct.unique_lists.A_TrialSubType(data_struct.data(:, data_struct.cn.([cur_prefix, '_idx'])))';
+% 	cur_0idx_list = zeros(size(cur_value_list));
+% 	[unique_value_list, ~, unique_values_list_row_idx] = unique(cur_value_list);
+% 	for i_unique_value = 1 : length(unique_value_list)
+% 		cur_value = unique_value_list{i_unique_value};
+% 		cur_valued_ldx = unique_values_list_row_idx == i_unique_value;
+% 		cur_value_ENUM_idx = find(ismember(Enums_struct.TrialSubTypes.unique_lists.TrialSubTypes, {cur_value}));
+% 		cur_0idx_list(cur_valued_ldx) = cur_value_ENUM_idx - 1; % EventIDE indices ENUMs are 0 based...
+% 	end
+% 	data_struct = fn_handle_data_struct('add_columns', data_struct, cur_0idx_list, {[cur_prefix, '']});
+% 	data_struct.FixUpReport{end+1} = ['TrialSubType ENUM: added synthezised A_TrialSubType'];
+% end
+% cur_prefix = 'B_TrialSubType';
+% if ~any(contains(data_struct.header, regexpPattern(['^', cur_prefix, '$'])))
+% 	cur_value_list = data_struct.unique_lists.B_TrialSubType(data_struct.data(:, data_struct.cn.([cur_prefix, '_idx'])))';
+% 	cur_0idx_list = zeros(size(cur_value_list));
+% 	[unique_value_list, ~, unique_values_list_row_idx] = unique(cur_value_list);
+% 	for i_unique_value = 1 : length(unique_value_list)
+% 		cur_value = unique_value_list{i_unique_value};
+% 		cur_valued_ldx = unique_values_list_row_idx == i_unique_value;
+% 		cur_value_ENUM_idx = find(ismember(Enums_struct.TrialSubTypes.unique_lists.TrialSubTypes, {cur_value}));
+% 		cur_0idx_list(cur_valued_ldx) = cur_value_ENUM_idx - 1; % EventIDE indices ENUMs are 0 based...
+% 	end
+% 	data_struct = fn_handle_data_struct('add_columns', data_struct, cur_0idx_list, {[cur_prefix, '']});
+% 	data_struct.FixUpReport{end+1} = ['TrialSubType ENUM: added synthezised B_TrialSubType'];
+% end
 
 
 
@@ -586,7 +734,9 @@ if ~isempty(fieldnames(Enums_struct))
 	% for all named enums find matching columns and create and add the
 	% corresponding _idx column (add one to the C# indices), add the enum
 	% header to the unique_list with the appropriate name
-	data_struct = fnAddEnumsToDataStruct(data_struct, Enums_struct, {'A_', 'B_'}, {'s'});
+	if isfield(data_struct, 'unique_lists') && isfield(data_struct, 'cn') && isfield(data_struct, 'data')
+		data_struct = fnAddEnumsToDataStruct(data_struct, Enums_struct, {'A_', 'B_'}, {'s'});
+	end
 	if ~isempty(fieldnames(Render_struct))
 		Render_struct = fnAddEnumsToDataStruct(Render_struct, Enums_struct, {''}, {'s'});
 	end
@@ -1041,8 +1191,8 @@ if strcmp(RecordType, 'data')
         if ~isempty(comma_space_idx)
             current_line(comma_space_idx) = ',';
         end
-        % at this point we have replaced clPoint date like: 739,445 (28,94°, 156,739?°)
-        % with: 739.445 (28.94°, 156.739?°)
+        % at this point we have replaced clPoint date like: 739,445 (28,94?, 156,739??)
+        % with: 739.445 (28.94?, 156.739??)
         % Where the 739.445 should have stayed 739,445. We need to fix this up later...
         % side note: the default formatting type for clPoint leaves room for
         % improvements...
@@ -1083,10 +1233,10 @@ if strcmp(RecordType, 'data')
 				OutDataCells{end+1} = CurrentData;
 			
 			case {'clPoint'}
-				%"1182,445 (6.029°, 23.167?°)"
+				%"1182,445 (6.029?, 23.167??)"
 				tmp_XY_string = strtok(CurrentData, ' ('); % remove the DVA values as these are not reliable anyways
                 if (ReplaceDecimalComaWithDecimalDot)
-                    % the above will look like: "1182.445 (6.029°, 23.167?°)"
+                    % the above will look like: "1182.445 (6.029?, 23.167??)"
                     % note the "1182.445" instead of "1182,445", this is
                     % slightly inconvenient, as str2num will turn N,N into
                     % two numbers, while N.N is interpreted as a decimal
@@ -1097,7 +1247,7 @@ if strcmp(RecordType, 'data')
 					end
 				end
 				% since about late 2019 early 2020 clPoint looks like  
-				% 960|500 (4.81Â°|90â„¢Â°), so the coma got replaced by
+				% 960|500 (4.81?|90??), so the coma got replaced by
 				% a "pipe" | we need to handle this gracefully
 				if ~isempty(strfind(tmp_XY_string, '|'))
 					tmp_XY_string(strfind(tmp_XY_string, '|')) = ' ';
@@ -1105,7 +1255,7 @@ if strcmp(RecordType, 'data')
 				OutDataCells{end+1} = str2num(tmp_XY_string);
 				
 			case {'clSize'}
-				%"56x56 (6.74°, 6.74°)" or later "56|56 (6.74Â°|6.74Â°)"
+				%"56x56 (6.74?, 6.74?)" or later "56|56 (6.74?|6.74?)"
 				tmp_WIDTH_HEIGHT_string = strtok(CurrentData, ' ('); % remove the DVA values
 				% old
 				if ~isempty(strfind(tmp_WIDTH_HEIGHT_string, 'x'))
@@ -1115,7 +1265,7 @@ if strcmp(RecordType, 'data')
 				end
 				
 				% since about late 2019 early 2020 clSize looks like  
-				% 56|56 (6.74Â°|6.74Â°), so the x got replaced by
+				% 56|56 (6.74?|6.74?), so the x got replaced by
 				% a "pipe" | we need to handle this gracefully
 				if ~isempty(strfind(tmp_WIDTH_HEIGHT_string, '|'))
 					tmp_WIDTH_HEIGHT_string(strfind(tmp_WIDTH_HEIGHT_string, '|')) = ' ';
@@ -1721,7 +1871,7 @@ end
 
 function [data_struct] = fn_process_data_struct_by_keyword(data_struct, process_keyword)
 
-global data_struct
+%global data_struct	% not needed as global, and actually harmful
 
 switch process_keyword
     case 'InitialFixationAdjReleaseTime_ms'
@@ -1745,7 +1895,7 @@ switch process_keyword
                 B_aborted_trials_idx = find(data_struct.data(:, data_struct.cn.B_AbortReason) ~= 0 & (data_struct.data(:, data_struct.cn.B_InitialFixationReleaseTime_ms) ~= 0));
                 
                 tmp_A_InitialFixationAdjReleaseTime_ms(A_aborted_trials_idx) = data_struct.data(A_aborted_trials_idx, data_struct.cn.A_InitialFixationReleaseTime_ms) - data_struct.data(A_aborted_trials_idx, data_struct.cn.A_TouchROIAllowedReleases_ms);
-                tmp_B_InitialFixationAdjReleaseTime_ms(A_aborted_trials_idx) = data_struct.data(A_aborted_trials_idx, data_struct.cn.B_InitialFixationReleaseTime_ms) - data_struct.data(A_aborted_trials_idx, data_struct.cn.B_TouchROIAllowedReleases_ms);
+                tmp_B_InitialFixationAdjReleaseTime_ms(B_aborted_trials_idx) = data_struct.data(B_aborted_trials_idx, data_struct.cn.B_InitialFixationReleaseTime_ms) - data_struct.data(B_aborted_trials_idx, data_struct.cn.B_TouchROIAllowedReleases_ms);
                 % add the newly calculated columns, but only if they do not
                 % exist already
                 data_struct = fn_handle_data_struct('add_columns', data_struct, [tmp_A_InitialFixationAdjReleaseTime_ms, tmp_B_InitialFixationAdjReleaseTime_ms], {'A_InitialFixationAdjReleaseTime_ms', 'B_InitialFixationAdjReleaseTime_ms'});
