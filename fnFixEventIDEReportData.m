@@ -24,13 +24,13 @@ end
 % was set to dyadic, but only a single name was registered then the code
 % fell back to Solo mode, but did not actually record that as the used
 % trial sub type (taht stayed as dyadic), so try to fix this here
-% The syndrom is TrialSubType implies two players, but the reward information 
+% The syndrom is TrialSubType implies two players, but the reward information
 % e.g. for Side_A: A_NumberRewardPulsesDelivered_HI, and
 % A_NumberRewardPulsesDelivered_HITOTHER indicate that a given trial
 % was Dyadic (of any kind, including SemiSolo), Solo, or SoloARewardAB/SoloBRewardAB
 
 
-% 20201218T130348.A_Elmo.B_FS.SCP_01 
+% 20201218T130348.A_Elmo.B_FS.SCP_01
 % has SoloBRewardAB, Dyadic and SoloA
 % with human partner still registered, but is marked correctly
 
@@ -39,9 +39,21 @@ end
 
 fixed_TrialSubTypes = 0;
 
+
 cur_per_trial_subject_A_list = output_struct.unique_lists.A_Name(output_struct.data(:, output_struct.cn.A_Name_idx));
 %cur_per_trial_isActive_A_list = output_struct.data(:, output_struct.cn.A_IsActive);
-cur_per_trial_isPlaying_A_list = output_struct.data(:, output_struct.cn.A_IsPlaying);
+%cur_per_trial_isPlaying_A_list = output_struct.data(:, output_struct.cn.A_IsPlaying);
+n_trials = size(output_struct.data, 1);
+if isfield(output_struct.cn, 'A_IsPlaying')
+	cur_per_trial_isPlaying_A_list = output_struct.data(:, output_struct.cn.A_IsPlaying);
+elseif isfield(output_struct.cn, 'A_IsActive')
+	cur_per_trial_isPlaying_A_list = output_struct.data(:, output_struct.cn.A_IsActive);
+	output_struct.FixUpReport{end+1} = 'fnFixEventIDEReportData: A_IsPlaying missing; used A_IsActive';
+else
+	cur_per_trial_isPlaying_A_list = ones(n_trials, 1);
+	output_struct.FixUpReport{end+1} = 'fnFixEventIDEReportData: A_IsPlaying/A_IsActive missing; assumed 1';
+end
+
 cur_per_trial_RawA_HIT = output_struct.data(:, output_struct.cn.A_NumberRewardPulsesDelivered_HIT);
 cur_per_trial_RawA_HITOTHER = output_struct.data(:, output_struct.cn.A_NumberRewardPulsesDelivered_HITOTHER);
 
@@ -51,7 +63,16 @@ if (size(cur_per_trial_subject_B_list, 1) ~= size(cur_per_trial_subject_A_list, 
 end
 
 %cur_per_trial_isactive_B_list = output_struct.data(:, output_struct.cn.B_IsActive);
-cur_per_trial_isPlaying_B_list = output_struct.data(:, output_struct.cn.B_IsPlaying);
+%cur_per_trial_isPlaying_B_list = output_struct.data(:, output_struct.cn.B_IsPlaying);
+if isfield(output_struct.cn, 'B_IsPlaying')
+	cur_per_trial_isPlaying_B_list = output_struct.data(:, output_struct.cn.B_IsPlaying);
+elseif isfield(output_struct.cn, 'B_IsActive')
+	cur_per_trial_isPlaying_B_list = output_struct.data(:, output_struct.cn.B_IsActive);
+	output_struct.FixUpReport{end+1} = 'fnFixEventIDEReportData: B_IsPlaying missing; used B_IsActive';
+else
+	cur_per_trial_isPlaying_B_list = ones(n_trials, 1);
+	output_struct.FixUpReport{end+1} = 'fnFixEventIDEReportData: B_IsPlaying/B_IsActive missing; assumed 1';
+end
 cur_per_trial_RawB_HIT = output_struct.data(:, output_struct.cn.B_NumberRewardPulsesDelivered_HIT);
 cur_per_trial_RawB_HITOTHER = output_struct.data(:, output_struct.cn.B_NumberRewardPulsesDelivered_HITOTHER) ;
 
@@ -106,35 +127,59 @@ if isfield(output_struct.cn, 'B_TrialSubTypeENUM_idx')
 	end
 end
 
-% now we want to check things for consistency
-for i_unique_Name_Combination = 1 : length(unique_Name_Combination_list)
-	%cur_unique_Name_Combination = unique_Name_Combination_list(i_unique_Name_Combination, :);
-	cur_unique_Name_Combination = unique_Name_Combination_list{i_unique_Name_Combination};
-	[cur_Name_A, rem] = strtok(cur_unique_Name_Combination, '_');
-	cur_Name_B = regexprep(rem, '^_', '');
+% HIT-based TrialSubType remap (SoloA/SoloB/Dyadic from reward pulses).
+% Skip sessions whose fnDefineAndAddPerSessionDataColumns already stamped
+% labels that reward cannot distinguish (SemiSolo vs SoloA). Rare; do not
+% invent a heuristic from one exemplar.
+skip_HIT_TrialSubType_sessions = {
+	'20210616T124854.A_Elmo.B_ST.SCP_01'
+	};
+cur_session_id = '';
+if isfield(output_struct, 'LoggingInfo') && isfield(output_struct.LoggingInfo, 'SessionLogFileName')
+	cur_session_id = output_struct.LoggingInfo.SessionLogFileName;
+elseif isfield(output_struct, 'info') && isfield(output_struct.info, 'logfile_FQN')
+	[~, cur_session_id] = fileparts(output_struct.info.logfile_FQN);
+	cur_session_id = regexprep(cur_session_id, '\.triallog.*$', '');
+end
+do_HIT_TrialSubType_fix = ~any(strcmp(cur_session_id, skip_HIT_TrialSubType_sessions));
+if ~do_HIT_TrialSubType_fix
+	disp([mfilename, ': INFO: skipping HIT TrialSubType remap for ', cur_session_id, ...
+		' (fnDefineAndAddPerSessionDataColumns owns TrialSubType)']);
+	output_struct.FixUpReport{end+1} = ['TrialSubType: skipped HIT remap for ', cur_session_id];
+end
 
-	cur_trial_ldx = Name_Combination_list_row_idx == i_unique_Name_Combination;
+if (do_HIT_TrialSubType_fix)
+	% now we want to check things for consistency
+	for i_unique_Name_Combination = 1 : length(unique_Name_Combination_list)
+		%cur_unique_Name_Combination = unique_Name_Combination_list(i_unique_Name_Combination, :);
+		cur_unique_Name_Combination = unique_Name_Combination_list{i_unique_Name_Combination};
+		[cur_Name_A, rem] = strtok(cur_unique_Name_Combination, '_');
+		cur_Name_B = regexprep(rem, '^_', '');
 
-	% the assigned trial subtypes that might be incorrect...
-	if isfield(output_struct.cn, 'A_TrialSubType_idx')
-		cur_TrialSubType_list = output_struct.unique_lists.A_TrialSubType(output_struct.data(cur_trial_ldx, output_struct.cn.A_TrialSubType_idx));
-	elseif isfield(output_struct.cn, 'A_TrialSubTypeENUM_idx')
-		cur_TrialSubType_list = output_struct.Enums.TrialSubTypes.unique_lists.TrialSubTypes(output_struct.data(cur_trial_ldx, output_struct.cn.A_TrialSubTypeENUM_idx));
-	end
-	unique_cur_TrialSubType_list = unique(cur_TrialSubType_list, 'stable');
-	% however these might be wrong...
+		cur_trial_ldx = Name_Combination_list_row_idx == i_unique_Name_Combination;
+
+		% the assigned trial subtypes that might be incorrect...
+		if isfield(output_struct.cn, 'A_TrialSubType_idx')
+			cur_TrialSubType_list = output_struct.unique_lists.A_TrialSubType(output_struct.data(cur_trial_ldx, output_struct.cn.A_TrialSubType_idx));
+		elseif isfield(output_struct.cn, 'A_TrialSubTypeENUM_idx')
+			cur_TrialSubType_list = output_struct.Enums.TrialSubTypes.unique_lists.TrialSubTypes(output_struct.data(cur_trial_ldx, output_struct.cn.A_TrialSubTypeENUM_idx));
+		else
+			continue	% no TrialSubType in this log; nothing to reconcile
+		end
+		unique_cur_TrialSubType_list = unique(cur_TrialSubType_list, 'stable');
+		% however these might be wrong...
 
 
-	% SOLO trials can happen with any name combination except None, None...
-	% especially with two names... but since we can disambiguate by 
+		% SOLO trials can happen with any name combination except None, None...
+		% especially with two names... but since we can disambiguate by
 
-	% check SoloA trials
-	cur_selected_trials_ldx = SoloA_trial_ldx & cur_trial_ldx;
-	if any(cur_selected_trials_ldx)
-		SoloA_class_TrialSubType_list = {'SoloA', 'SoloAHighReward', 'SoloA_PresentB'};
-		% OK found SoloA trials, check the assigned TrialSubTypes
-		cur_unique_TrialSubTypes_in_data_list = unique(output_struct.Enums.TrialSubTypes.unique_lists.TrialSubTypes(output_struct.data(cur_selected_trials_ldx, output_struct.cn.A_TrialSubTypeENUM_idx)));
-		for i_unique_TrialSubTypes_in_data = 1 : length(cur_unique_TrialSubTypes_in_data_list)
+		% check SoloA trials
+		cur_selected_trials_ldx = SoloA_trial_ldx & cur_trial_ldx;
+		if any(cur_selected_trials_ldx)
+			SoloA_class_TrialSubType_list = {'SoloA', 'SoloAHighReward', 'SoloA_PresentB', 'SoloABlockedView'};
+			% OK found SoloA trials, check the assigned TrialSubTypes
+			cur_unique_TrialSubTypes_in_data_list = unique(output_struct.Enums.TrialSubTypes.unique_lists.TrialSubTypes(output_struct.data(cur_selected_trials_ldx, output_struct.cn.A_TrialSubTypeENUM_idx)));
+			for i_unique_TrialSubTypes_in_data = 1 : length(cur_unique_TrialSubTypes_in_data_list)
 				cur_unique_TrialSubTypes_in_data = cur_unique_TrialSubTypes_in_data_list{i_unique_TrialSubTypes_in_data};
 				% find the subset of trials of this type
 				cur_unique_TrialSubTypes_in_data_list_ldx = ismember(output_struct.Enums.TrialSubTypes.unique_lists.TrialSubTypes(output_struct.data(:, output_struct.cn.A_TrialSubTypeENUM_idx))', {cur_unique_TrialSubTypes_in_data});
@@ -149,15 +194,15 @@ for i_unique_Name_Combination = 1 : length(unique_Name_Combination_list)
 					error([mfilename, ': ERROR: multiple cur_unique_TrialSubTypes_in_data, should not happen']);
 				end
 			end
-	end
+		end
 
-	% check SoloARewardAB trials
-	cur_selected_trials_ldx = SoloARewardAB_trial_ldx & cur_trial_ldx;
-	if any(cur_selected_trials_ldx)
-		SoloARewardAB_class_TrialSubType_list = {'SoloARewardAB'};
-		% OK found SoloARewardAB trials, check the assigned TrialSubTypes
-		cur_unique_TrialSubTypes_in_data_list = unique(output_struct.Enums.TrialSubTypes.unique_lists.TrialSubTypes(output_struct.data(cur_selected_trials_ldx, output_struct.cn.A_TrialSubTypeENUM_idx)));
-		for i_unique_TrialSubTypes_in_data = 1 : length(cur_unique_TrialSubTypes_in_data_list)
+		% check SoloARewardAB trials
+		cur_selected_trials_ldx = SoloARewardAB_trial_ldx & cur_trial_ldx;
+		if any(cur_selected_trials_ldx)
+			SoloARewardAB_class_TrialSubType_list = {'SoloARewardAB'};
+			% OK found SoloARewardAB trials, check the assigned TrialSubTypes
+			cur_unique_TrialSubTypes_in_data_list = unique(output_struct.Enums.TrialSubTypes.unique_lists.TrialSubTypes(output_struct.data(cur_selected_trials_ldx, output_struct.cn.A_TrialSubTypeENUM_idx)));
+			for i_unique_TrialSubTypes_in_data = 1 : length(cur_unique_TrialSubTypes_in_data_list)
 				cur_unique_TrialSubTypes_in_data = cur_unique_TrialSubTypes_in_data_list{i_unique_TrialSubTypes_in_data};
 				% find the subset of trials of this type
 				cur_unique_TrialSubTypes_in_data_list_ldx = ismember(output_struct.Enums.TrialSubTypes.unique_lists.TrialSubTypes(output_struct.data(:, output_struct.cn.A_TrialSubTypeENUM_idx))', {cur_unique_TrialSubTypes_in_data});
@@ -172,15 +217,15 @@ for i_unique_Name_Combination = 1 : length(unique_Name_Combination_list)
 					error([mfilename, ': ERROR: multiple cur_unique_TrialSubTypes_in_data, should not happen']);
 				end
 			end
-	end
+		end
 
-	% check SoloB trials
-	cur_selected_trials_ldx = SoloB_trial_ldx & cur_trial_ldx;
-	if any(cur_selected_trials_ldx)
-		SoloB_class_TrialSubType_list = {'SoloB', 'SoloBHighReward', 'SoloB_PresentA'};
-		% OK found SoloB trials, check the assigned TrialSubTypes
-		cur_unique_TrialSubTypes_in_data_list = unique(output_struct.Enums.TrialSubTypes.unique_lists.TrialSubTypes(output_struct.data(cur_selected_trials_ldx, output_struct.cn.A_TrialSubTypeENUM_idx)));
-		for i_unique_TrialSubTypes_in_data = 1 : length(cur_unique_TrialSubTypes_in_data_list)
+		% check SoloB trials
+		cur_selected_trials_ldx = SoloB_trial_ldx & cur_trial_ldx;
+		if any(cur_selected_trials_ldx)
+			SoloB_class_TrialSubType_list = {'SoloB', 'SoloBHighReward', 'SoloB_PresentA', 'SoloBBlockedView'};
+			% OK found SoloB trials, check the assigned TrialSubTypes
+			cur_unique_TrialSubTypes_in_data_list = unique(output_struct.Enums.TrialSubTypes.unique_lists.TrialSubTypes(output_struct.data(cur_selected_trials_ldx, output_struct.cn.A_TrialSubTypeENUM_idx)));
+			for i_unique_TrialSubTypes_in_data = 1 : length(cur_unique_TrialSubTypes_in_data_list)
 				cur_unique_TrialSubTypes_in_data = cur_unique_TrialSubTypes_in_data_list{i_unique_TrialSubTypes_in_data};
 				% find the subset of trials of this type
 				cur_unique_TrialSubTypes_in_data_list_ldx = ismember(output_struct.Enums.TrialSubTypes.unique_lists.TrialSubTypes(output_struct.data(:, output_struct.cn.A_TrialSubTypeENUM_idx))', {cur_unique_TrialSubTypes_in_data});
@@ -190,21 +235,21 @@ for i_unique_Name_Combination = 1 : length(unique_Name_Combination_list)
 				elseif ~ismember(cur_unique_TrialSubTypes_in_data, SoloB_class_TrialSubType_list)
 					disp([mfilename, ': INFO: Existing ', cur_unique_TrialSubTypes_in_data,' labeled trials changed to: ', 'SoloB']);
 					output_struct = fn_change_TrialSubType_information(output_struct, cur_selected_trials_ldx & cur_unique_TrialSubTypes_in_data_list_ldx, '_TrialSubType', 'SoloB');
-					fixed_TrialSubTypes = 1;					
+					fixed_TrialSubTypes = 1;
 				else
 					error([mfilename, ': ERROR: multiple cur_unique_TrialSubTypes_in_data, should not happen']);
 				end
 			end
-	end
+		end
 
 
-	% check SoloBRewardAB trials
-	cur_selected_trials_ldx = SoloBRewardAB_trial_ldx & cur_trial_ldx;
-	if any(cur_selected_trials_ldx)
-		SoloBRewardAB_class_TrialSubType_list = {'SoloBRewardAB'};
-		% OK found SoloBRewardAB trials, check the assigned TrialSubTypes
-		cur_unique_TrialSubTypes_in_data_list = unique(output_struct.Enums.TrialSubTypes.unique_lists.TrialSubTypes(output_struct.data(cur_selected_trials_ldx, output_struct.cn.A_TrialSubTypeENUM_idx)));
-		for i_unique_TrialSubTypes_in_data = 1 : length(cur_unique_TrialSubTypes_in_data_list)
+		% check SoloBRewardAB trials
+		cur_selected_trials_ldx = SoloBRewardAB_trial_ldx & cur_trial_ldx;
+		if any(cur_selected_trials_ldx)
+			SoloBRewardAB_class_TrialSubType_list = {'SoloBRewardAB'};
+			% OK found SoloBRewardAB trials, check the assigned TrialSubTypes
+			cur_unique_TrialSubTypes_in_data_list = unique(output_struct.Enums.TrialSubTypes.unique_lists.TrialSubTypes(output_struct.data(cur_selected_trials_ldx, output_struct.cn.A_TrialSubTypeENUM_idx)));
+			for i_unique_TrialSubTypes_in_data = 1 : length(cur_unique_TrialSubTypes_in_data_list)
 				cur_unique_TrialSubTypes_in_data = cur_unique_TrialSubTypes_in_data_list{i_unique_TrialSubTypes_in_data};
 				% find the subset of trials of this type
 				cur_unique_TrialSubTypes_in_data_list_ldx = ismember(output_struct.Enums.TrialSubTypes.unique_lists.TrialSubTypes(output_struct.data(:, output_struct.cn.A_TrialSubTypeENUM_idx))', {cur_unique_TrialSubTypes_in_data});
@@ -219,34 +264,40 @@ for i_unique_Name_Combination = 1 : length(unique_Name_Combination_list)
 					error([mfilename, ': ERROR: multiple cur_unique_TrialSubTypes_in_data, should not happen']);
 				end
 			end
-	end
+		end
 
 
-	% dyadic trials require both names different from None
-	if ~strcmp(cur_Name_A, 'None') && ~strcmp(cur_Name_B, 'None')
-		cur_selected_trials_ldx = Dyadic_trial_ldx & cur_trial_ldx;
-		dyadic_class_TrialSubType_list = {'Dyadic', 'DyadicBlockedView', 'SemiSolo'};
-		if any(cur_selected_trials_ldx)
-			% OK found Dyadic trials, check the assigned TrialSubTypes
-			cur_unique_TrialSubTypes_in_data_list = unique(output_struct.Enums.TrialSubTypes.unique_lists.TrialSubTypes(output_struct.data(cur_selected_trials_ldx, output_struct.cn.A_TrialSubTypeENUM_idx)));
-			for i_unique_TrialSubTypes_in_data = 1 : length(cur_unique_TrialSubTypes_in_data_list)
-				cur_unique_TrialSubTypes_in_data = cur_unique_TrialSubTypes_in_data_list{i_unique_TrialSubTypes_in_data};
-				% find the subset of trials of this type
-				cur_unique_TrialSubTypes_in_data_list_ldx = ismember(output_struct.Enums.TrialSubTypes.unique_lists.TrialSubTypes(output_struct.data(:, output_struct.cn.A_TrialSubTypeENUM_idx))', {cur_unique_TrialSubTypes_in_data});
-				if ismember(cur_unique_TrialSubTypes_in_data, dyadic_class_TrialSubType_list)
-					% nothing to do these are already correct
-					disp([mfilename, ': INFO: Existing ', cur_unique_TrialSubTypes_in_data,' labeled trials OK.']);
-				elseif ~ismember(cur_unique_TrialSubTypes_in_data, dyadic_class_TrialSubType_list)
-					disp([mfilename, ': INFO: Existing ', cur_unique_TrialSubTypes_in_data,' labeled trials changed to: ', 'Dyadic']);
-					output_struct = fn_change_TrialSubType_information(output_struct, cur_selected_trials_ldx & cur_unique_TrialSubTypes_in_data_list_ldx, '_TrialSubType', 'Dyadic');
-					fixed_TrialSubTypes = 1;
-				else
-					error([mfilename, ': ERROR: multiple cur_unique_TrialSubTypes_in_data, should not happen']);
+		% dyadic trials require both names different from None
+		if ~strcmp(cur_Name_A, 'None') && ~strcmp(cur_Name_B, 'None')
+			cur_selected_trials_ldx = Dyadic_trial_ldx & cur_trial_ldx;
+			dyadic_class_TrialSubType_list = {'Dyadic', 'DyadicBlockedView', 'SemiSolo'};
+			if any(cur_selected_trials_ldx)
+				% OK found Dyadic trials, check the assigned TrialSubTypes
+				cur_unique_TrialSubTypes_in_data_list = unique(output_struct.Enums.TrialSubTypes.unique_lists.TrialSubTypes(output_struct.data(cur_selected_trials_ldx, output_struct.cn.A_TrialSubTypeENUM_idx)));
+				for i_unique_TrialSubTypes_in_data = 1 : length(cur_unique_TrialSubTypes_in_data_list)
+					cur_unique_TrialSubTypes_in_data = cur_unique_TrialSubTypes_in_data_list{i_unique_TrialSubTypes_in_data};
+					% find the subset of trials of this type
+					cur_unique_TrialSubTypes_in_data_list_ldx = ismember(output_struct.Enums.TrialSubTypes.unique_lists.TrialSubTypes(output_struct.data(:, output_struct.cn.A_TrialSubTypeENUM_idx))', {cur_unique_TrialSubTypes_in_data});
+					if ismember(cur_unique_TrialSubTypes_in_data, dyadic_class_TrialSubType_list)
+						% nothing to do these are already correct
+						disp([mfilename, ': INFO: Existing ', cur_unique_TrialSubTypes_in_data,' labeled trials OK.']);
+					elseif ~ismember(cur_unique_TrialSubTypes_in_data, dyadic_class_TrialSubType_list)
+						disp([mfilename, ': INFO: Existing ', cur_unique_TrialSubTypes_in_data,' labeled trials changed to: ', 'Dyadic']);
+						output_struct = fn_change_TrialSubType_information(output_struct, cur_selected_trials_ldx & cur_unique_TrialSubTypes_in_data_list_ldx, '_TrialSubType', 'Dyadic');
+						fixed_TrialSubTypes = 1;
+					else
+						error([mfilename, ': ERROR: multiple cur_unique_TrialSubTypes_in_data, should not happen']);
+					end
 				end
 			end
 		end
 	end
 end
+
+% A_invisible / B_invisible are the physical occluder (OLED or fnDefineAndAddPerSessionDataColumns).
+% EventIDE TrialSubType BlockedView is only a hint. Must run AFTER the HIT-based remap above.
+output_struct = fn_reconcile_TrialSubType_BlockedView_from_invisible(output_struct);
+
 
 % if (fixed_TrialSubTypes)
 % 	output_struct.FixUpReport{end+1} = ['TrialSubType: Fixed assignment of TrialSubType from reward data (HIT and HITOTHER)'];
@@ -284,7 +335,7 @@ if isfield(fixup_struct, 'correct_visual_stimulus_change_ts_from_photodiode') &&
 	% by omitting the final extension this defaults to loading the highest
 	% processed version of the signallog
 	signallog_base_FQN = fullfile(session_dir, 'trackerlogfiles', [session_id, '.TID_NISignalFileWriterADC.signallog']);
-	
+
 	% check if signallog exists and load it if it does
 	proto_signallog_dir_struct = dir([signallog_base_FQN, '*']);
 	if ~isempty(proto_signallog_dir_struct)
@@ -294,20 +345,20 @@ end
 
 % sanitize TrialStart timestamp to data table
 
-% add trial end timestamp to data table 
+% add trial end timestamp to data table
 % use the Paradigm start time of the ITI state unless trialend is defined.
 % to get a over inclusive trial definition, a trial starts with the ITI...
 % this definition is not useful for temporal alignment, but sufficient for
 % sanity checking
 if isfield(fixup_struct, 'add_trial_start_and_end_times') && (fixup_struct.add_trial_start_and_end_times)
 	if isfield(output_struct, 'ParadigmState') && isfield(output_struct.ParadigmState, 'data')
-		
+
 		if isfield(input_struct.Enums, 'ParadigmStates')
 			ITI_ParadigmStateENUM_idx = input_struct.Enums.ParadigmStates.EnumStruct.data(input_struct.Enums.ParadigmStates.EnumStruct.cn.ITI)+1;
 		elseif (isfield(input_struct.Enums, 'DAGDirectFreeGazeReaches'))
 			ITI_ParadigmStateENUM_idx = input_struct.Enums.DAGDirectFreeGazeReaches.EnumStruct.data(input_struct.Enums.DAGDirectFreeGazeReaches.EnumStruct.cn.ITI)+1;
 		end
-		
+
 		ITI_para_instance_idx = find(output_struct.ParadigmState.data(:, output_struct.ParadigmState.cn.ParadigmStateENUM_idx) == ITI_ParadigmStateENUM_idx);
 		n_trials = size(output_struct.data, 1);
 		% these pairs should be correct
@@ -337,6 +388,39 @@ end
 
 % add estimated Reward start times unless they exist already
 
+% Global TrialSubType: A and B ENUM names must match after all remaps.
+if isfield(output_struct.cn, 'A_TrialSubTypeENUM_idx') && isfield(output_struct.cn, 'B_TrialSubTypeENUM_idx')
+	tst_list = output_struct.Enums.TrialSubTypes.unique_lists.TrialSubTypes;
+	a_idx = output_struct.data(:, output_struct.cn.A_TrialSubTypeENUM_idx);
+	b_idx = output_struct.data(:, output_struct.cn.B_TrialSubTypeENUM_idx);
+	valid_a = isfinite(a_idx) & a_idx >= 1 & a_idx <= numel(tst_list);
+	valid_b = isfinite(b_idx) & b_idx >= 1 & b_idx <= numel(tst_list);
+	disagree_ldx = false(size(a_idx));
+	disagree_ldx(valid_a & valid_b) = a_idx(valid_a & valid_b) ~= b_idx(valid_a & valid_b);
+	one_sided_invalid_ldx = xor(valid_a, valid_b);
+	n_disagree = sum(disagree_ldx);
+	n_one_sided = sum(one_sided_invalid_ldx);
+	if n_disagree > 0 || n_one_sided > 0
+		disp([mfilename, ': WARN: A vs B TrialSubTypeENUM disagree: ', ...
+			num2str(n_disagree), ' both-valid mismatches, ', ...
+			num2str(n_one_sided), ' one-sided invalid idx']);
+		if n_disagree > 0
+			[u_a, ~, ic] = unique(a_idx(disagree_ldx));
+			for i_u = 1:numel(u_a)
+				n_u = sum(ic == i_u);
+				b_for_a = unique(b_idx(disagree_ldx & a_idx == u_a(i_u)));
+				disp(['  A=', tst_list{u_a(i_u)}, ' vs B={', strjoin(tst_list(b_for_a), ','), '}: ', num2str(n_u)]);
+			end
+		end
+		output_struct.FixUpReport{end+1} = sprintf( ...
+			'TrialSubType A/B ENUM disagree: %d mismatches, %d one-sided invalid', n_disagree, n_one_sided);
+		% error([mfilename, ': A/B TrialSubTypeENUM disagree']);  % after recook is clean
+	end
+elseif isfield(output_struct.cn, 'A_TrialSubTypeENUM_idx') && ~isfield(output_struct.cn, 'B_TrialSubTypeENUM_idx')
+	disp([mfilename, ': INFO: no B_TrialSubTypeENUM_idx; skip A/B TrialSubType equality check']);
+end
+
+
 return
 end
 
@@ -349,9 +433,10 @@ if ~isfield(output_struct, 'PhotoDiodeRenderer') || ~isfield(output_struct.Photo
 	disp(['fnFixVisualChangeTimesFromPhotodiodeSignallog: PhotoDiodeRenderer does not exist or is empty, no timing correction possible.']);
 	output_struct.FixUpReport{end+1} = 'fnFixVisualChangeTimesFromPhotodiodeSignallog: PhotoDiodeRenderer does not exist or is empty, no timing correction possible.';
 	return
-end	
+end
 
 debug = 0;
+save_pd_figures = 0;	% 1 = write PD diagnostic PDFs; 0 = timestamp correction only
 
 [signallog_base_dir, signallog_base_name]  = fileparts(signallog_base_FQN);
 
@@ -372,7 +457,7 @@ if isfield(signallog, 'info') && isfield(signallog.info, 'patient_id')
 			photo_diode_signal_col = i_col;
 		end
 	end
-	
+
 	timestamp_col = [];
 	tmp_list = strfind(channel_name_list, 'EventIDE_TimeStamp');
 	for i_col = 1 : length(channel_name_list)
@@ -428,7 +513,7 @@ for i_pd_onset = 1 : length(pd_onset_sample_idx)
 	cur_pd_onset_idx = pd_onset_sample_idx(i_pd_onset);
 	sample_offset = 1;
 	% 3.45 Volts seems to work
-	
+
 	% the last value recorded is a rising flank
 	if ((cur_pd_onset_idx+sample_offset) > n_samples)
 		% or use NaN
@@ -472,7 +557,7 @@ if isempty(pd_onset_sample_timestamp_list) && isempty(pd_offset_sample_timestamp
 	output_struct.FixUpReport{end+1} = 'fnFixVisualChangeTimesFromPhotodiodeSignallog: No PhotoDiode data found; could not correct the PhotoDiodeRenderer times from recorded PhotoDiode data';
 	return
 end
-	
+
 pd_pulse_dur_ms_list = pd_offset_sample_timestamp_list - pd_onset_sample_timestamp_list;
 %histogram(pd_pulse_dur_ms_list)
 % these should all be canonical, so averaging will work
@@ -498,15 +583,14 @@ pd_onset_sample_timestamp_diff_list = diff([pd_onset_sample_timestamp_list(1); p
 pd_offset_sample_timestamp_diff_list = diff([pd_offset_sample_timestamp_list(1); pd_offset_sample_timestamp_list]);
 
 
-histogram_fh = figure('Name', 'PhotoDiodeInterOnsetInterval');
-%histogram((pd_onset_sample_timestamp_diff_list(find((pd_onset_sample_timestamp_diff_list * 1000) < 30)) * 1000));
-%pd_onset_sample_timestamp_diff_list * 1000
 tmp_data_idx = pd_onset_sample_timestamp_diff_list <= (30); % 30 ms would be 1/0.03sec or 33.3 Hz, we use refreshrates larger than that
 tmp_data = pd_onset_sample_timestamp_diff_list(tmp_data_idx);
-histogram( tmp_data );
-
-if ~debug
-	close(histogram_fh);
+if save_pd_figures || debug
+	histogram_fh = figure('Name', 'PhotoDiodeInterOnsetInterval');
+	histogram( tmp_data );
+	if ~debug
+		close(histogram_fh);
+	end
 end
 
 % this should be
@@ -561,7 +645,7 @@ for i_pulse = 1 : length(pd_inter_pulse_dur_ms_list)
 		pd_block_onset_ms_list(block_counter + 1) = pd_onset_sample_timestamp_list(i_pulse + 1);
 		pd_block_offset_ms_list(block_counter) = pd_offset_sample_timestamp_list(i_pulse);
 	end
-	
+
 end
 % prune the lists to remove unfilled rows.
 pd_block_onset_ms_list = pd_block_onset_ms_list(1:block_counter);
@@ -569,47 +653,51 @@ pd_block_offset_ms_list = pd_block_offset_ms_list(1:block_counter);
 pd_block_dur_ms = pd_block_offset_ms_list - pd_block_onset_ms_list;
 pd_inter_block_dur_ms = [(pd_block_onset_ms_list(2:end) - pd_block_offset_ms_list(1:end-1)); 0];
 
+if save_pd_figures || debug
+	pd_fh = figure('Name', 'PhotoDiode Signal with Block Onset and Offset');
+	legend_list = {};
+	hold on
+	legend_list{end+1} = 'PhotoDiode';
+	plot(signallog.data(:, timestamp_col), signallog.data(:, photo_diode_signal_col));
 
-pd_fh = figure('Name', 'PhotoDiode Signal with Block Onset and Offset');
-legend_list = {};
-hold on
-legend_list{end+1} = 'PhotoDiode';
-plot(signallog.data(:, timestamp_col), signallog.data(:, photo_diode_signal_col));
+	% show the detected block onsets and offsets
+	y_lim = get(gca, 'YLim');
+	set(gca, 'YLim', [-0.5 y_lim(2)]);
 
-% show the detected block onsets and offsets
-y_lim = get(gca, 'YLim');
-set(gca, 'YLim', [-0.5 y_lim(2)]);
+	y_lim = get(gca, 'YLim');
 
-y_lim = get(gca, 'YLim');
+	% plot the detected block borders
+	for i_PD_block_onset = 1 : length(pd_block_onset_ms_list)
+		plot([pd_block_onset_ms_list(i_PD_block_onset), pd_block_onset_ms_list(i_PD_block_onset)], [0 y_lim(2)], 'Color', [0 1 0]);
+	end
+	legend_list{end+1} = 'PD_block_onset';
+	for i_PD_block_offset = 1 : length(pd_block_offset_ms_list)
+		plot([pd_block_offset_ms_list(i_PD_block_offset), pd_block_offset_ms_list(i_PD_block_offset)], [0 y_lim(2)], 'Color', [1 0 0]);
+	end
+	legend_list{end+1} = 'PD_block_offset';
 
-% plot the detected block borders
-for i_PD_block_onset = 1 : length(pd_block_onset_ms_list)
-	plot([pd_block_onset_ms_list(i_PD_block_onset), pd_block_onset_ms_list(i_PD_block_onset)], [0 y_lim(2)], 'Color', [0 1 0]);
-end
-legend_list{end+1} = 'PD_block_onset';
-for i_PD_block_offset = 1 : length(pd_block_offset_ms_list)
-	plot([pd_block_offset_ms_list(i_PD_block_offset), pd_block_offset_ms_list(i_PD_block_offset)], [0 y_lim(2)], 'Color', [1 0 0]);
-end
-legend_list{end+1} = 'PD_block_offset';
+	% plot the photo diode times as well
+	PD_transition_visibility = output_struct.PhotoDiodeRenderer.data(:, output_struct.PhotoDiodeRenderer.cn.Visible);
+	PD_onset_timestamps = output_struct.PhotoDiodeRenderer.data((PD_transition_visibility == 1), output_struct.PhotoDiodeRenderer.cn.Timestamp);
+	PD_offset_timestamps = output_struct.PhotoDiodeRenderer.data((PD_transition_visibility == 0), output_struct.PhotoDiodeRenderer.cn.Timestamp);
+	for i_PhotoDiodeRenderer_onset = 1 : length(PD_onset_timestamps)
+		plot([PD_onset_timestamps(i_PhotoDiodeRenderer_onset), PD_onset_timestamps(i_PhotoDiodeRenderer_onset)], [y_lim(1) 0], 'Color', [0 0.6 0]);
+	end
+	legend_list{end+1} = 'PhotoDiodeRenderer_onset';
+	for i_PhotoDiodeRenderer_offset = 1 : length(PD_offset_timestamps)
+		plot([PD_offset_timestamps(i_PhotoDiodeRenderer_offset), PD_offset_timestamps(i_PhotoDiodeRenderer_offset)], [y_lim(1) 0], 'Color', [0.6 0 0]);
+	end
+	legend_list{end+1} = 'PhotoDiodeRenderer_offset';
 
-% plot the photo diode times as well
-PD_transition_visibility = output_struct.PhotoDiodeRenderer.data(:, output_struct.PhotoDiodeRenderer.cn.Visible);
-PD_onset_timestamps = output_struct.PhotoDiodeRenderer.data((PD_transition_visibility == 1), output_struct.PhotoDiodeRenderer.cn.Timestamp);
-PD_offset_timestamps = output_struct.PhotoDiodeRenderer.data((PD_transition_visibility == 0), output_struct.PhotoDiodeRenderer.cn.Timestamp);
-for i_PhotoDiodeRenderer_onset = 1 : length(PD_onset_timestamps)
-	plot([PD_onset_timestamps(i_PhotoDiodeRenderer_onset), PD_onset_timestamps(i_PhotoDiodeRenderer_onset)], [y_lim(1) 0], 'Color', [0 0.6 0]);
-end
-legend_list{end+1} = 'PhotoDiodeRenderer_onset';
-for i_PhotoDiodeRenderer_offset = 1 : length(PD_offset_timestamps)
-	plot([PD_offset_timestamps(i_PhotoDiodeRenderer_offset), PD_offset_timestamps(i_PhotoDiodeRenderer_offset)], [y_lim(1) 0], 'Color', [0.6 0 0]);
-end
-legend_list{end+1} = 'PhotoDiodeRenderer_offset';
+	hold off
+	%scrollplot;
+	if save_pd_figures
+		write_out_figure(pd_fh, fullfile(signallog_base_dir, ['PhotoDiode_Signal_with_Block_Onset_and_Offset', '.pdf']));
+	end
+	if ~debug
+		close(pd_fh);
+	end
 
-hold off
-%scrollplot;
-write_out_figure(pd_fh, fullfile(signallog_base_dir, ['PhotoDiode_Signal_with_Block_Onset_and_Offset', '.pdf']));
-if ~debug
-	close(pd_fh);
 end
 
 % now find the corresponding events for the photodiode
@@ -619,22 +707,22 @@ if isfield(output_struct, 'PhotoDiodeRenderer') && (size(output_struct.PhotoDiod
 	% Visible denotes the state transition
 	% we need to correct RendererState and (main) data onset and offsets
 	% as well as Render
-	
+
 	% prepare the PhotoDiodeRenderer record
 	output_struct.PhotoDiodeRenderer.header{end + 1} = 'uncorrected_Timestamp';
 	output_struct.PhotoDiodeRenderer.header{end + 1} = 'uncorrected_RenderTimestamp_ms';
 	output_struct.PhotoDiodeRenderer.cn = local_get_column_name_indices(output_struct.PhotoDiodeRenderer.header);
 	output_struct.PhotoDiodeRenderer.data(:, output_struct.PhotoDiodeRenderer.cn.uncorrected_Timestamp) = output_struct.PhotoDiodeRenderer.data(:, output_struct.PhotoDiodeRenderer.cn.Timestamp);
 	output_struct.PhotoDiodeRenderer.data(:, output_struct.PhotoDiodeRenderer.cn.uncorrected_RenderTimestamp_ms) = output_struct.PhotoDiodeRenderer.data(:, output_struct.PhotoDiodeRenderer.cn.RenderTimestamp_ms);
-	
+
 	PD_transition_timestamps = output_struct.PhotoDiodeRenderer.data(:, output_struct.PhotoDiodeRenderer.cn.Timestamp);
 	PD_transition_visibility = output_struct.PhotoDiodeRenderer.data(:, output_struct.PhotoDiodeRenderer.cn.Visible);
-	
+
 	RenderTimestamp_ms_photodiode_diff_list = zeros(size(PD_transition_timestamps));
-	
+
 	for i_PD_transition = 1 : length(PD_transition_timestamps)
 		cur_PD_transition_timestamp = PD_transition_timestamps(i_PD_transition);
-		
+
 		if (PD_transition_visibility(i_PD_transition) == 1)
 			% Visible == 1 means the renderer was activated -> pd_block_onset
 			tmp_idx = find(pd_block_onset_ms_list >= cur_PD_transition_timestamp, 1);
@@ -658,42 +746,43 @@ if isfield(output_struct, 'PhotoDiodeRenderer') && (size(output_struct.PhotoDiod
 		end
 	end
 	output_struct.FixUpReport{end+1} = 'fnFixVisualChangeTimesFromPhotodiodeSignallog: Corrected the PhotoDiodeRenderer times from recorded PhotoDiode data';
-	
-	
-	PD_overview_fh = figure('Name', 'PhotoDiodeBlockTimes minus EventIDE RenderTimes');
-	subplot(2, 2, 1)
-	histogram(RenderTimestamp_ms_photodiode_diff_list(find(PD_transition_visibility == 1)), (30:1:100)),
-	title('Block Onset: difference histogram between PhotoDiode Time and RenderTimes');
-	
-	subplot(2, 2, 2)
-	plot(PD_transition_timestamps(find(PD_transition_visibility == 1)), RenderTimestamp_ms_photodiode_diff_list(find(PD_transition_visibility == 1))),
-	title('Block Onset: difference between PhotoDiode Time and RenderTimes over time');
-	
-	subplot(2, 2, 3)
-	histogram(RenderTimestamp_ms_photodiode_diff_list(find(PD_transition_visibility == 0)), (30:1:100)),
-	title('Block Offset: difference histogram between PhotoDiode Time and RenderTimes');
-	
-	subplot(2, 2, 4)
-	plot(PD_transition_timestamps(find(PD_transition_visibility == 0)), RenderTimestamp_ms_photodiode_diff_list(find(PD_transition_visibility == 0))),
-	title('Block Offset: difference between PhotoDiode Time and RenderTimes over time');
-	
-	write_out_figure(PD_overview_fh, fullfile(signallog_base_dir, [signallog_base_name, '.VisualOnsetOffset.pdf']))
-	
-	if ~debug
-		close(PD_overview_fh);
+
+	if save_pd_figures || debug
+		PD_overview_fh = figure('Name', 'PhotoDiodeBlockTimes minus EventIDE RenderTimes');
+		subplot(2, 2, 1)
+		histogram(RenderTimestamp_ms_photodiode_diff_list(find(PD_transition_visibility == 1)), (30:1:100)),
+		title('Block Onset: difference histogram between PhotoDiode Time and RenderTimes');
+
+		subplot(2, 2, 2)
+		plot(PD_transition_timestamps(find(PD_transition_visibility == 1)), RenderTimestamp_ms_photodiode_diff_list(find(PD_transition_visibility == 1))),
+		title('Block Onset: difference between PhotoDiode Time and RenderTimes over time');
+
+		subplot(2, 2, 3)
+		histogram(RenderTimestamp_ms_photodiode_diff_list(find(PD_transition_visibility == 0)), (30:1:100)),
+		title('Block Offset: difference histogram between PhotoDiode Time and RenderTimes');
+
+		subplot(2, 2, 4)
+		plot(PD_transition_timestamps(find(PD_transition_visibility == 0)), RenderTimestamp_ms_photodiode_diff_list(find(PD_transition_visibility == 0))),
+		title('Block Offset: difference between PhotoDiode Time and RenderTimes over time');
+
+		if save_pd_figures
+			write_out_figure(PD_overview_fh, fullfile(signallog_base_dir, [signallog_base_name, '.VisualOnsetOffset.pdf']))
+		end
+		if ~debug
+			close(PD_overview_fh);
+		end
 	end
-	
-	
+
 	% now correct
-	
+
 	% we need to correct RendererState and (main) data onset and offsets
 	% as well as Render
-	
+
 	% prepare the Render record
 	output_struct.Render.header{end + 1} = 'uncorrected_Timestamp';
 	output_struct.Render.cn = local_get_column_name_indices(output_struct.Render.header);
 	output_struct.Render.data(:, output_struct.Render.cn.uncorrected_Timestamp) = output_struct.Render.data(:, output_struct.Render.cn.Timestamp);
-	
+
 	for i_PhotoDiodeRendererChange = 1 : size(output_struct.PhotoDiodeRenderer.data, 1)
 		cur_corrected_RenderTimestamp_ms = output_struct.PhotoDiodeRenderer.data(i_PhotoDiodeRendererChange, output_struct.PhotoDiodeRenderer.cn.RenderTimestamp_ms);
 		cur_uncorrected_RenderTimestamp_ms  = output_struct.PhotoDiodeRenderer.data(i_PhotoDiodeRendererChange, output_struct.PhotoDiodeRenderer.cn.uncorrected_RenderTimestamp_ms);
@@ -705,8 +794,8 @@ if isfield(output_struct, 'PhotoDiodeRenderer') && (size(output_struct.PhotoDiod
 		end
 	end
 	output_struct.FixUpReport{end+1} = 'fnFixVisualChangeTimesFromPhotodiodeSignallog: Corrected the Render times from recorded PhotoDiode data';
-	
-	
+
+
 	to_be_corrected_data_filed_list = {'Timestamp', 'RenderTimestamp_ms'};
 	for i_field = 1 : length(to_be_corrected_data_filed_list)
 		if isfield(output_struct, 'RendererState') && isfield(output_struct.RendererState, 'data')
@@ -716,7 +805,7 @@ if isfield(output_struct, 'PhotoDiodeRenderer') && (size(output_struct.PhotoDiod
 				output_struct.RendererState.header{end + 1} = cur_uncorrected_fieldname;
 				output_struct.RendererState.cn = local_get_column_name_indices(output_struct.RendererState.header);
 				output_struct.RendererState.data(:, output_struct.RendererState.cn.(cur_uncorrected_fieldname)) = output_struct.RendererState.data(:, output_struct.RendererState.cn.(cur_fieldname));
-				
+
 				for i_PhotoDiodeRendererChange = 1 : size(output_struct.PhotoDiodeRenderer.data, 1)
 					cur_corrected_RenderTimestamp_ms = output_struct.PhotoDiodeRenderer.data(i_PhotoDiodeRendererChange, output_struct.PhotoDiodeRenderer.cn.RenderTimestamp_ms);
 					cur_uncorrected_RenderTimestamp_ms  = output_struct.PhotoDiodeRenderer.data(i_PhotoDiodeRendererChange, output_struct.PhotoDiodeRenderer.cn.uncorrected_RenderTimestamp_ms);
@@ -731,9 +820,9 @@ if isfield(output_struct, 'PhotoDiodeRenderer') && (size(output_struct.PhotoDiod
 			end
 		end
 	end
-	
-	
-	
+
+
+
 	% prepare the data record
 	to_be_corrected_data_filed_list = {'A_InitialFixationOnsetTime_ms', 'B_InitialFixationOnsetTime_ms', ...
 		'A_TargetOnsetTime_ms', 'B_TargetOnsetTime_ms', ...
@@ -747,7 +836,7 @@ if isfield(output_struct, 'PhotoDiodeRenderer') && (size(output_struct.PhotoDiod
 			output_struct.header{end + 1} = cur_uncorrected_fieldname;
 			output_struct.cn = local_get_column_name_indices(output_struct.header);
 			output_struct.data(:, output_struct.cn.(cur_uncorrected_fieldname)) = output_struct.data(:, output_struct.cn.(cur_fieldname));
-			
+
 			for i_PhotoDiodeRendererChange = 1 : size(output_struct.PhotoDiodeRenderer.data, 1)
 				cur_corrected_RenderTimestamp_ms = output_struct.PhotoDiodeRenderer.data(i_PhotoDiodeRendererChange, output_struct.PhotoDiodeRenderer.cn.RenderTimestamp_ms);
 				cur_uncorrected_RenderTimestamp_ms  = output_struct.PhotoDiodeRenderer.data(i_PhotoDiodeRendererChange, output_struct.PhotoDiodeRenderer.cn.uncorrected_RenderTimestamp_ms);
@@ -761,7 +850,7 @@ if isfield(output_struct, 'PhotoDiodeRenderer') && (size(output_struct.PhotoDiod
 			output_struct.FixUpReport{end+1} = ['fnFixVisualChangeTimesFromPhotodiodeSignallog: Corrected the data times from recorded PhotoDiode data for: ', cur_fieldname];
 		end
 	end
-	
+
 elseif isfield(output_struct, 'PhotoDiodeDriver') && (size(output_struct.PhotoDiodeDriver.data, 1) > 1)
 	% old style photodiode data, can we actually correct anything?
 	error('Not Implemented yet.');
@@ -817,12 +906,12 @@ for i_trial = 1: size(input_struct.data, 1)
 	% get the stimulus names
 	CurrentTrialStimulusNameIdxList = input_struct.Stimuli.data(CurrentTrialStimuliIdx, input_struct.Stimuli.cn.StimulusName_idx);
 	CurrentTargetStimulusList = input_struct.Stimuli.unique_lists.StimulusName(CurrentTrialStimulusNameIdxList(logical(CurrentTrialIsTargetList)));
-	
+
 	if sum(ismember(CurrentTargetStimulusList, {'LeftHandTouchTargetLessDim_RedRing', 'LeftHandTouchTargetLessDim_YellowRing', 'RightHandTouchTargetLessDim_RedRing', 'RightHandTouchTargetLessDim_YellowRing'})) > 0
 		CurrentTrialTargetInformative = 1;
 		InformativeTargetsPerTrialList(i_trial) = 1;
 	end
-	
+
 	if (CurrentTrialTargetInformative)
 		if (NumTargetsInTrial == 1)
 			CurrentTrialTypeString = 'InformedDirectedReach';
@@ -836,20 +925,20 @@ for i_trial = 1: size(input_struct.data, 1)
 			CurrentTrialTypeString = 'DirectFreeGazeFreeChoice';
 		end
 	end
-	
+
 	CurrentTrialTypeENUM_idx = find(strcmp(CurrentTrialTypeString, input_struct.unique_lists.A_TrialTypeENUM));
 	CurrentTrialTypeString_idx = find(strcmp(CurrentTrialTypeString, input_struct.unique_lists.A_TrialTypeString));
-	
+
 	ouput_struct.data(i_trial, ouput_struct.cn.A_TrialType) = CurrentTrialTypeENUM_idx - 1;
 	ouput_struct.data(i_trial, ouput_struct.cn.A_TrialTypeENUM_idx) = CurrentTrialTypeENUM_idx;
 	ouput_struct.data(i_trial, ouput_struct.cn.A_TrialTypeString_idx) = CurrentTrialTypeString_idx;
-	
-	
+
+
 	ouput_struct.data(i_trial, ouput_struct.cn.B_TrialType) = CurrentTrialTypeENUM_idx - 1;
 	ouput_struct.data(i_trial, ouput_struct.cn.B_TrialTypeENUM_idx) = CurrentTrialTypeENUM_idx;
 	ouput_struct.data(i_trial, ouput_struct.cn.B_TrialTypeString_idx) = CurrentTrialTypeString_idx;
-	
-	
+
+
 end
 
 ouput_struct.FixUpReport{end+1} = 'TrialType: Fixed sporadically wrong TrialType assignments using the stimuli struct';
@@ -896,6 +985,8 @@ end
 
 ByTrial_struct.cn = local_get_column_name_indices(ByTrial_struct.header);
 
+
+
 return
 end
 
@@ -941,10 +1032,10 @@ if (min_delta < 0)
 else
 	fix_TargetOffsetTimes_ms = 0;
 end
-	
+
 if (fix_TargetOffsetTimes_ms)
 	% in any given trial TargetOffsetTimes_ms should correspond roughly
-	% with the start of 
+	% with the start of
 	error('Not implemented yet...');
 	output_struct.FixUpReport{end+1} = ['fn_correct_TargetOffsetTimes_ms_from_RenderState: Corrected TargetOffsetTimes_ms from RenderState'];
 end
@@ -976,7 +1067,7 @@ for i_TrialSubType_col = 1 : length(TrialSubType_col_idx)
 			%keyboard	% needs some testing
 			mod_cur_header_col = cur_header_col(1:end-4);
 			if ~isfield(output_struct.unique_lists, mod_cur_header_col)
-				output_struct.unique_lists.(mod_cur_header_col) = {};				
+				output_struct.unique_lists.(mod_cur_header_col) = {};
 			end
 			cur_mod_cur_header_col_idx = find(ismember(output_struct.unique_lists.(mod_cur_header_col), {TrialSubType_class}));
 			if isempty(cur_mod_cur_header_col_idx)
@@ -998,9 +1089,94 @@ for i_TrialSubType_col = 1 : length(TrialSubType_col_idx)
 end
 
 output_struct.FixUpReport{end+1} = ['fn_change_TrialSubType_information: Fixed assignment of TrialSubType from reward data (HIT and HITOTHER): corrected TrialSubType: ', TrialSubType_class, ' (', num2str(sum(cur_trial_ldx)), ' trials)'];
-
-
 end
 
 
+function [ output_struct ] = fn_reconcile_TrialSubType_BlockedView_from_invisible( output_struct )
+% Physical occluder wins over EventIDE TrialSubType.
+% Default: Dyadic/SoloA/SoloB count as blocked if A_invisible OR B_invisible == 1.
+% Missing A_invisible/B_invisible (or all zeros) => assume visible => demote *BlockedView.
+% Switch occluded_ldx to (invisible_A_ldx & invisible_B_ldx) for paper-between-AB only.
 
+if ~isfield(output_struct, 'cn') || ~isfield(output_struct, 'Enums') ...
+		|| ~isfield(output_struct.Enums, 'TrialSubTypes') ...
+		|| ~isfield(output_struct.cn, 'A_TrialSubTypeENUM_idx')
+	return
+end
+
+n_trials = size(output_struct.data, 1);
+invisible_A_ldx = false(n_trials, 1);
+invisible_B_ldx = false(n_trials, 1);
+has_A_invisible = isfield(output_struct.cn, 'A_invisible');
+has_B_invisible = isfield(output_struct.cn, 'B_invisible');
+if has_A_invisible
+	invisible_A_ldx = output_struct.data(:, output_struct.cn.A_invisible) == 1;
+end
+if has_B_invisible
+	invisible_B_ldx = output_struct.data(:, output_struct.cn.B_invisible) == 1;
+end
+if ~has_A_invisible && ~has_B_invisible
+	disp([mfilename, ': INFO: no A_invisible/B_invisible columns; assume visible, demote BlockedView']);
+end
+
+% default: any side occluded → BlockedView (OLED one-way + paper-between-AB)
+occluded_ldx = invisible_A_ldx | invisible_B_ldx;
+
+tst_list = output_struct.Enums.TrialSubTypes.unique_lists.TrialSubTypes;
+tst_idx = output_struct.data(:, output_struct.cn.A_TrialSubTypeENUM_idx);
+valid_ldx = isfinite(tst_idx) & (tst_idx >= 1) & (tst_idx <= numel(tst_list));
+if ~any(valid_ldx)
+	return
+end
+cur_tst = repmat({''}, n_trials, 1);
+cur_tst(valid_ldx) = tst_list(tst_idx(valid_ldx));
+
+% {visible name, BlockedView name}
+blockedview_pair_list = {
+	'Dyadic', 'DyadicBlockedView'
+	'SoloA',  'SoloABlockedView'
+	'SoloB',  'SoloBBlockedView'
+	};
+
+n_changed = 0;
+for i_bv = 1 : size(blockedview_pair_list, 1)
+	src_name = blockedview_pair_list{i_bv, 1};
+	dst_name = blockedview_pair_list{i_bv, 2};
+
+	% session never used this pair
+	if ~any(ismember(tst_list, {src_name})) && ~any(ismember(tst_list, {dst_name}))
+		continue
+	end
+	% fn_change needs a valid ENUM idx; add missing name (typical: only BlockedView was logged)
+	for i_need = 1:2
+		need_name = blockedview_pair_list{i_bv, i_need};
+		if ~any(ismember(tst_list, {need_name}))
+			output_struct.Enums.TrialSubTypes.unique_lists.TrialSubTypes{end+1} = need_name;
+			tst_list = output_struct.Enums.TrialSubTypes.unique_lists.TrialSubTypes;
+			disp([mfilename, ': INFO: added missing TrialSubType enum: ', need_name]);
+		end
+	end
+
+	promote_ldx = valid_ldx & occluded_ldx & strcmp(cur_tst, src_name);
+	demote_ldx = valid_ldx & ~occluded_ldx & strcmp(cur_tst, dst_name);
+
+	if any(promote_ldx)
+		disp([mfilename, ': INFO: ', src_name, ' -> ', dst_name, ' from A/B_invisible (any==1): ', num2str(sum(promote_ldx)), ' trials']);
+		output_struct = fn_change_TrialSubType_information(output_struct, promote_ldx, '_TrialSubType', dst_name);
+		n_promote = sum(promote_ldx);
+		cur_tst(promote_ldx) = repmat({dst_name}, n_promote, 1);
+		n_changed = n_changed + n_promote;
+	end
+	if any(demote_ldx)
+		disp([mfilename, ': INFO: ', dst_name, ' -> ', src_name, ' (not occluded): ', num2str(sum(demote_ldx)), ' trials']);
+		output_struct = fn_change_TrialSubType_information(output_struct, demote_ldx, '_TrialSubType', src_name);
+		n_demote = sum(demote_ldx);
+		cur_tst(demote_ldx) = repmat({src_name}, n_demote, 1);
+		n_changed = n_changed + n_demote;
+	end
+end
+
+if n_changed > 0
+	output_struct.FixUpReport{end+1} = 'fn_reconcile_TrialSubType_BlockedView_from_invisible: TrialSubType BlockedView reconciled from A_invisible|B_invisible (missing cols = visible)';
+end
+end
