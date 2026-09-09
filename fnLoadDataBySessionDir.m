@@ -1,4 +1,4 @@
-function [ out_struct, session_id, session_id_list, session_struct_list, in_session_id, session_dir ] = fnLoadDataBySessionDir( session_id , override_directive, merge_command )
+function [ out_struct, session_id, session_id_list, session_struct_list, in_session_id, session_dir ] = fnLoadDataBySessionDir( session_id , override_directive, merge_command, requested_type_list )
 %FNLOADDATABYSESSIONDIR Summary of this function goes here
 %   Detailed explanation goes here
 % given a sesssion directory load all data files
@@ -69,6 +69,11 @@ else
 		error(['unhandled merge_command (', merge_command, ') encountered, bailing out.']);
 	end
 end
+
+if ~exist('requested_type_list', 'var') || isempty(requested_type_list)
+	requested_type_list = {'triallog', 'trackerlog', 'signallog'};	% old default: load all
+end
+requested_type_list = requested_type_list(:)';
 
 
 if ~iscell(session_id)
@@ -166,9 +171,27 @@ for i_session = 1 : length(session_id_list)
 	end
 	
 	% find the relevant files
-	unique_file_list = fn_find_matching_files(base_match_string_list, session_dir);
-	unique_file_list = [unique_file_list, fn_find_matching_files(tracker_match_string_list, fullfile(session_dir, trackerlog_sub_dir))];
-	
+	%unique_file_list = fn_find_matching_files(base_match_string_list, session_dir);
+	%unique_file_list = [unique_file_list, fn_find_matching_files(tracker_match_string_list, fullfile(session_dir, trackerlog_sub_dir))]
+	% find the relevant files (only requested kinds)
+	% NOTE: we might want to switch to regexp patterns eventually to allow
+	% selecting specific instances, but for now this should suffice
+	unique_file_list = {};
+	if ismember('triallog', requested_type_list)
+		unique_file_list = [unique_file_list, fn_find_matching_files({'.triallog'}, session_dir)];
+	end
+	tracker_want = {};
+	if ismember('trackerlog', requested_type_list)
+		tracker_want{end+1} = '.trackerlog';
+	end
+	if ismember('signallog', requested_type_list)
+		tracker_want{end+1} = '.signallog';
+	end
+	if ~isempty(tracker_want)
+		unique_file_list = [unique_file_list, fn_find_matching_files(tracker_want, fullfile(session_dir, trackerlog_sub_dir))];
+	end
+
+
 	% now load the files
 	for i_unique_file = 1:length(unique_file_list)
 		cur_unique_file_fqn = unique_file_list{i_unique_file};
