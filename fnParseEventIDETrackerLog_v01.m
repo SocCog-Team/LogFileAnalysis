@@ -207,8 +207,20 @@ if strcmp(orig_TrackerLog_ext, '.gz')
 		% found a gziped file, now uncompress
 		disp(['Current trackerlog/signallog file: ', gzip_TrackerLog_FQN]);
 		disp(['Gunzipping the compressed trackerlog/signallog file, might take a while...']);
+		% if exist(gzip_TrackerLog_FQN, 'file')
+		% 	gunzip(gzip_TrackerLog_FQN);
+		% else
+		% 	error('Expected to find gz file, but did not...');
+		% end
 		if exist(gzip_TrackerLog_FQN, 'file')
-			gunzip(gzip_TrackerLog_FQN);
+			try
+				gunzip(gzip_TrackerLog_FQN);
+			catch me
+				disp([mfilename, ': WARN: gunzip raw log failed (', me.message, ')']);
+				if exist(TrackerLog_FQN, 'file')
+					delete(TrackerLog_FQN);	% partial unzip
+				end
+			end
 		else
 			error('Expected to find gz file, but did not...');
 		end
@@ -234,13 +246,35 @@ gzip_TmpTrackerLog_FQN = [TmpTrackerLog_FQN, '.gz'];
 if ~exist(TmpTrackerLog_FQN, 'file')
 	if exist(gzip_TmpTrackerLog_FQN, 'file')
 		disp(['Gunzipping compressed fixed trackerlog/signallog: ', gzip_TmpTrackerLog_FQN])
-		gunzip(gzip_TmpTrackerLog_FQN);
+		%gunzip(gzip_TmpTrackerLog_FQN);
+		try
+			gunzip(gzip_TmpTrackerLog_FQN);
+		catch me
+			disp([mfilename, ': WARN: gunzip Fixed.txt.gz failed (', me.message, '); rebuild from raw trackerlog']);
+			if exist(TmpTrackerLog_FQN, 'file')
+				delete(TmpTrackerLog_FQN);	% partial unzip
+			end
+		end
 	end
 end
 
 
+%tmp_dir_TrackerLog_FQN = dir(TrackerLog_FQN);
+%TrackerLog_size_bytes  = tmp_dir_TrackerLog_FQN.bytes;
 tmp_dir_TrackerLog_FQN = dir(TrackerLog_FQN);
-TrackerLog_size_bytes  = tmp_dir_TrackerLog_FQN.bytes;
+if isempty(tmp_dir_TrackerLog_FQN)
+	disp([mfilename, ': WARN: raw trackerlog/signallog missing, skipping: ', TrackerLog_FQN]);
+	if ~isempty(regexp(TrackerLog_Name, 'signallog', 'once'))
+		cur_stop = '.signallog';
+	else
+		cur_stop = '.trackerlog';
+	end
+	info.tracker_name = fn_extract_trackername_from_filename(TrackerLog_Name, '.TID_', cur_stop);
+	data_struct = struct();
+	data_struct.info = info;
+	return
+end
+TrackerLog_size_bytes = tmp_dir_TrackerLog_FQN.bytes;
 
 % default to semi-colon to separate the LogHeader and data lines
 if (~exist('column_separator', 'var')) || isempty(column_separator)
@@ -644,24 +678,45 @@ switch add_method
 				cells_are_of_equal_length = 1;
 			end
 			
+			% if ~cells_are_of_equal_length
+			% 	if ismember(log_type, {'signallog'})
+			% 		% make sure all cells are of equal length
+			% 		disp(['fnParseEventIDETrackerLog_v01: Forcing all textscan cells to minimum length of ', num2str(min(numel_per_cell_list(:))), ', (', num2str(n_cells), ' cells, max ', num2str(max(numel_per_cell_list(:))), ').']);
+			% 
+			% 		for i_cell = 1 : n_cells
+			% 			if (numel_per_cell_list(i_cell) > min(numel_per_cell_list(:)))
+			% 				disp(['Adjusting cell ', num2str(i_cell), ' of ', num2str(n_cells), ' from ', num2str(numel_per_cell_list(i_cell)), ' to ', num2str(min(numel_per_cell_list(:))), '.']);
+			% 				TrackerLogCell{i_cell} = TrackerLogCell{i_cell}(1:min(numel_per_cell_list(:)));
+			% 			end
+			% 		end
+			% 	else
+			% 		% figure out how to deal with that properly later,
+			% 		% could be used to make the fix-up step conditional on
+			% 		% naive parsing failing?
+			% 		error(['fnParseEventIDETrackerLog_v01: Individual columns are of different length, but the log type is not tolerant to this condition.']);
+			% 	end
+			%end
 			if ~cells_are_of_equal_length
-				if ismember(log_type, {'signallog'})
-					% make sure all cells are of equal length
-					disp(['fnParseEventIDETrackerLog_v01: Forcing all textscan cells to minimum length of ', num2str(min(numel_per_cell_list(:))), ', (', num2str(n_cells), ' cells, max ', num2str(max(numel_per_cell_list(:))), ').']);
-
+				nmin = min(numel_per_cell_list(:));
+				nmax = max(numel_per_cell_list(:));
+				n_drop = nmax - nmin;
+				if ismember(log_type, {'signallog', 'trackerlog'}) && (nmin > 0) && (n_drop <= 2)
+					disp([mfilename, ': ragged textscan (min ', num2str(nmin), ...
+						', max ', num2str(nmax), ', ', num2str(n_cells), ...
+						' cols); truncating to min (likely incomplete last line).']);
 					for i_cell = 1 : n_cells
-						if (numel_per_cell_list(i_cell) > min(numel_per_cell_list(:)))
-							disp(['Adjusting cell ', num2str(i_cell), ' of ', num2str(n_cells), ' from ', num2str(numel_per_cell_list(i_cell)), ' to ', num2str(min(numel_per_cell_list(:))), '.']);
-							TrackerLogCell{i_cell} = TrackerLogCell{i_cell}(1:min(numel_per_cell_list(:)));
+						if numel_per_cell_list(i_cell) > nmin
+							TrackerLogCell{i_cell} = TrackerLogCell{i_cell}(1:nmin);
 						end
 					end
+				elseif ismember(log_type, {'signallog', 'trackerlog'})
+					disp([mfilename, ': WARN: ragged textscan too severe to auto-truncate (min ', ...
+						num2str(nmin), ', max ', num2str(nmax), '); skip convert']);
+					TrackerLogCell{1} = [];	% so 721 ~isempty is false
 				else
-					% figure out how to deal with that properly later,
-					% could be used to make the fix-up step conditional on
-					% naive parsing failing?
-					error(['fnParseEventIDETrackerLog_v01: Individual columns are of different length, but the log type is not tolerant to this condition.']);
+					error([mfilename, ': Individual columns are of different length, but the log type is not tolerant to this condition.']);
 				end
-			end
+			end			
 			% do not try to convert empty log files
 			if ~isempty(TrackerLogCell{1})
 				data_struct = fnConvertTextscanOutputToDataStruct(TrackerLogCell, tmp_fast.header, tmp_fast.column_type_list, expand_GLM_coefficients, replace_coma_by_dot, OutOfBoundsValue);
@@ -1156,7 +1211,7 @@ function [ col_header, corrected_EventIDE_TimeStamp_list ] = fn_extract_correcte
 % while Tracker_Time_Stamps (for reliable Trackers) are closer to the real
 % time of acquisition, use the traker timestamps to adjust the eventide
 % timestamps
-debug = 1;
+debug = 0;
 
 col_header = 'Tracker_corrected_EventIDE_TimeStamp';
 corrected_EventIDE_TimeStamp_list = [];
